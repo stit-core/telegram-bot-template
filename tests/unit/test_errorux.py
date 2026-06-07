@@ -61,6 +61,17 @@ async def test_unhandled_answers_oops_on_message() -> None:
     assert answered == [_OOPS]
 
 
+async def test_unhandled_silent_without_callback_or_message() -> None:
+    # ни callback, ни message (напр. edited_message/poll) — нечем ответить, не падаем
+    await AppErrorUX().on_unhandled(_event(), bot=None)  # type: ignore[arg-type]
+
+
+async def test_unknown_intent_silent_without_callback() -> None:
+    # stale пришёл не как callback (нет «часиков» гасить) — _answer_callback тихо выходит
+    msg = SimpleNamespace(answer=lambda *a, **k: None)
+    await AppErrorUX().on_unknown_intent(_event(message=msg), bot=None)  # type: ignore[arg-type]
+
+
 async def test_register_routes_unknown_intent_to_app_ux() -> None:
     dp = Dispatcher()
     register_error_handlers(dp, AppErrorUX())
