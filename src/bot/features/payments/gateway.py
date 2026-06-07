@@ -10,7 +10,12 @@ from typing import Any
 
 from bot.features.payments import errors
 from bot.features.payments.dto import Order
-from bot.platform.backend import BackendClient, BackendNotFound, BackendUnavailable
+from bot.platform.backend import (
+    BackendClient,
+    BackendConflict,
+    BackendNotFound,
+    BackendUnavailable,
+)
 
 
 class HttpPaymentsGateway:
@@ -33,6 +38,9 @@ class HttpPaymentsGateway:
                 json={"charge_id": charge_id},
                 idempotency_key=charge_id,
             )
+        except BackendConflict:
+            # 409 на идемпотентный fulfill — выдача уже применена бэкендом, повтор = успех
+            return
         except BackendUnavailable as exc:
             raise errors.PaymentError("Сервис оплаты недоступен") from exc
 

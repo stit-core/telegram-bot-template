@@ -14,7 +14,8 @@ Active-секцией, а не хвостом в удаляемой.
 **Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
 mypy + pytest). См. `.claude/CLAUDE.md`.
 
-**Current focus:** — (нет активного плана)
+**Current focus:** Фаза 0 закрыта (C1/C2/H1/M7). Следующее по `audit/roadmap.md` — Фаза 1
+(надёжность под нагрузкой/на сбоях) до прода с платежами/уведомлениями.
 
 ## Active
 
@@ -22,5 +23,9 @@ _(пусто — заведи секцию через `/plan`)_
 
 ## Backlog
 
-- Свапнуть пин `pylibinfra` с коммита `3eebcba` на release-тег `vX.Y.Z`, когда `pylibinfra`
+- **Метрика успешной выдачи** `payments_total{stage=paid,result=ok}` + лог промаха доставки —
+  чтобы регрессии путей платежей/уведомлений перестали быть невидимыми (хвост Фазы 0).
+- Фаза 1 аудита (`audit/roadmap.md`) — rate-governor, JetStream failure-path/DLQ, реальный drain,
+  fail-open на Redis/NATS, SecretStr, PII-redact, throttle. Обязательна до прода с платежами/уведомл.
+- Свапнуть пин `pylibinfra` с коммита `2ba22fd` на release-тег `vX.Y.Z`, когда `pylibinfra`
   будет тегнут на ревизии с `tgbotkit` (`pyproject.toml` → `[tool.uv.sources]`).

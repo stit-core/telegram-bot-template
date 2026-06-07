@@ -29,11 +29,11 @@ dev = [
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на конкретную ревизию инфры, как go-сервис на go.mod-версию.
-# СЕЙЧАС: коммит 3eebcba — первая ревизия с kit'ом tgbotkit (единственный тег v0.1.0 —
-# bootstrap-коммит, ДО tgbotkit). Свапнуть на релиз-тег (tag = "vX.Y.Z"), как только
-# pylibinfra будет тегнут на ревизии с tgbotkit. См. design/ROADMAP «Открытые вопросы».
+# СЕЙЧАС: коммит 2ba22fd — tgbotkit с reserve/commit-дедупом и recovery→dp.errors
+# (единственный тег v0.1.0 — bootstrap-коммит, ДО tgbotkit). Свапнуть на релиз-тег
+# (tag = "vX.Y.Z"), как только pylibinfra будет тегнут на ревизии с tgbotkit.
 [tool.uv.sources]
-pylibinfra = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git", rev = "3eebcba" }
+pylibinfra = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git", rev = "2ba22fd" }
 
 [build-system]
 requires = ["hatchling"]

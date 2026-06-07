@@ -2,7 +2,7 @@
 
 confirm() — сердце «не доверять клиенту»: грузит авторитетную цену с бэкенда (get_offer) и
 сверяет её с суммой/валютой из pre_checkout через чистую policy. complete() — выдача (gateway
-делает её идемпотентной по charge_id; дедуп самого апдейта — в хендлере через guard_charge).
+делает её идемпотентной по charge_id; дедуп самого апдейта — в хендлере через ChargeGuard).
 """
 
 from __future__ import annotations

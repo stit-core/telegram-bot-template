@@ -4,8 +4,8 @@
 - on_pre_checkout / on_successful_payment: dispatcher-level апдейты (НЕ dialog-callback) —
   регистрируются через CommandBundle (__init__.py). pre_checkout отвечаем через
   answer_pre_checkout (timeout-guard к дедлайну Telegram 10с, fail-closed); successful_payment
-  дедупим guard_charge по telegram_payment_charge_id (at-least-once). Связь invoice↔платёж —
-  через invoice_payload (= order_id).
+  защищаем ChargeGuard.reserve по telegram_payment_charge_id (at-least-once): commit после
+  успешной выдачи, release на сбое. Связь invoice↔платёж — через invoice_payload (= order_id).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram import inject as inject_dispatcher
 from dishka.integrations.aiogram_dialog import inject as inject_dialog
-from pylibinfra.tgbotkit import answer_pre_checkout, build_invoice, guard_charge
+from pylibinfra.tgbotkit import ChargeGuard, answer_pre_checkout, build_invoice
 
 from bot.features.payments.state import DEMO_OFFER_ID
 from bot.features.payments.usecase import PaymentsUsecase
@@ -67,7 +67,14 @@ async def on_successful_payment(
     sp = message.successful_payment
     if sp is None:
         return
-    # at-least-once: один платёж может прийти дважды → дедуп по charge_id
-    if await guard_charge(client, sp.telegram_payment_charge_id):
-        return
-    await uc.complete(sp.invoice_payload, sp.telegram_payment_charge_id)
+    charge_id = sp.telegram_payment_charge_id
+    # at-least-once: платёж может прийти дважды → reserve до выдачи, commit после
+    guard = ChargeGuard(client)
+    if not await guard.reserve(charge_id):
+        return  # дубликат или выдача уже в процессе
+    try:
+        await uc.complete(sp.invoice_payload, charge_id)
+    except Exception:
+        await guard.release(charge_id)  # сбой выдачи → ключ снят, повтор апдейта сможет выдать
+        raise
+    await guard.commit(charge_id)

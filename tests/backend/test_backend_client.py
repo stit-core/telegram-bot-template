@@ -30,6 +30,26 @@ async def test_get_returns_json() -> None:
 
 
 @respx.mock
+async def test_2xx_non_json_body_maps_unavailable() -> None:
+    # прокси/WAF отдал HTML на 2xx — доменная ошибка, а не JSONDecodeError наверх
+    respx.get("http://backend/v1/x").mock(
+        return_value=httpx.Response(
+            200, headers={"content-type": "text/html"}, content=b"<html>oops</html>"
+        )
+    )
+    with pytest.raises(BackendUnavailable):
+        await _client().get("/v1/x")
+
+
+@respx.mock
+async def test_2xx_non_object_json_maps_unavailable() -> None:
+    # валидный JSON, но не объект (список) — контракт dict нарушен
+    respx.get("http://backend/v1/x").mock(return_value=httpx.Response(200, json=[1, 2, 3]))
+    with pytest.raises(BackendUnavailable):
+        await _client().get("/v1/x")
+
+
+@respx.mock
 async def test_get_404_maps_not_found() -> None:
     respx.get("http://backend/v1/x").mock(return_value=httpx.Response(404))
     with pytest.raises(BackendNotFound):

@@ -10,7 +10,12 @@ from typing import Any
 
 from bot.features.profile import errors
 from bot.features.profile.dto import ProfileView
-from bot.platform.backend import BackendClient, BackendNotFound, BackendUnavailable
+from bot.platform.backend import (
+    BackendClient,
+    BackendConflict,
+    BackendNotFound,
+    BackendUnavailable,
+)
 
 
 class HttpProfileGateway:
@@ -36,6 +41,9 @@ class HttpProfileGateway:
             )
         except BackendNotFound as exc:
             raise errors.ProfileNotFound(str(exc)) from exc
+        except BackendConflict as exc:
+            # rename возвращает обновлённый профиль — на 409 тела нет, успех неоднозначен
+            raise errors.ProfileError("Не удалось обновить профиль") from exc
         except BackendUnavailable as exc:
             raise errors.ProfileError("Сервис временно недоступен") from exc
         return self._to_view(raw)

@@ -26,14 +26,20 @@ class OrderDeliverer:
         user_ref = str(payload.get("user_ref", "")) if isinstance(payload, dict) else ""
         if not order_id or not user_ref:
             return
-        if await self._dedup.seen(f"order-paid:{order_id}"):
-            return  # уже доставляли это событие
         chat_id = await self._lookup_chat(user_ref)
         if chat_id is None:
             return  # нет link tg→chat (пользователь не онбордился) — тихо пропускаем
-        await delivery.send_message(
-            chat_id=chat_id, text=f"✅ Оплата заказа {order_id} получена. Спасибо!"
-        )
+        key = f"order-paid:{order_id}"
+        if not await self._dedup.reserve(key):
+            return  # уже доставлено или доставка в процессе у другого консьюмера
+        try:
+            await delivery.send_message(
+                chat_id=chat_id, text=f"✅ Оплата заказа {order_id} получена. Спасибо!"
+            )
+        except Exception:
+            await self._dedup.release(key)  # сбой доставки → JsBus nak → redelivery повторит
+            raise
+        await self._dedup.commit(key)
 
     async def _lookup_chat(self, user_ref: str) -> int | None:
         raw, found = await self._cache.get(chat_link_key(user_ref))

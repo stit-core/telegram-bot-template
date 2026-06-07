@@ -1,7 +1,8 @@
-"""FakeRedis — минимальный in-memory redis.asyncio для guard_charge / DeliveryDedup.
+"""FakeRedis — минимальный in-memory redis.asyncio для ChargeGuard / DeliveryDedup.
 
-Поддерживает SET с nx/ex: возвращает True при первой записи ключа, None — если ключ уже есть
-(nx=True). Этого достаточно для проверки дедупа платежей и доставки.
+Поддерживает SET с nx/ex (True при первой записи, None если ключ есть при nx=True) и DELETE.
+Этого достаточно для reserve/commit/release-дедупа платежей и доставки. TTL не моделируется —
+проверка протухания резервации/коммита идёт в integration (testcontainers redis).
 """
 
 from __future__ import annotations
@@ -26,3 +27,6 @@ class FakeRedis:
             return None
         self.store[name] = value
         return True
+
+    async def delete(self, *names: str) -> int:
+        return sum(self.store.pop(name, None) is not None for name in names)

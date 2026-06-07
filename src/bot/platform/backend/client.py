@@ -60,7 +60,13 @@ class BackendClient:
         if resp.is_success:
             if not resp.content:
                 return {}
-            body: dict[str, Any] = resp.json()
+            # 2xx с не-JSON телом (прокси/WAF отдал HTML) — контрактный сбой, не паника наверху
+            try:
+                body = resp.json()
+            except ValueError as exc:
+                raise BackendUnavailable("backend returned non-JSON 2xx body") from exc
+            if not isinstance(body, dict):
+                raise BackendUnavailable("backend returned non-object 2xx body")
             return body
         if resp.status_code == 404:
             raise BackendNotFound(f"{resp.request.method} {resp.request.url}: 404")

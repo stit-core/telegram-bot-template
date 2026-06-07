@@ -18,9 +18,11 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
 - **Отправляй через `Delivery`** (аргумент `deliver_*`), не через сырой `BgManager`/`bot.*`.
   `Delivery` закрывает: фон вне middleware → `request_id`/локаль руками, пустой стек → safe,
   EDIT не гарантирован, throttle. Сырой `BgManager` мимо `Delivery` — нет.
-- **Идемпотентность обязательна** (JetStream durable = at-least-once): дедуп до отправки через
-  `DeliveryDedup.seen(<event-key>)`; ключ стабильный по событию (`order-paid:<order_id>`), не по
-  времени. «Вряд ли задвоится» — не аргумент.
+- **Идемпотентность обязательна** (JetStream durable = at-least-once): `reserve(<event-key>)` ДО
+  отправки → `commit` после успеха → `release` на сбое. Ключ стабильный по событию
+  (`order-paid:<order_id>`), не по времени. Сбой доставки **пробрасывай** (не глотать) — `JsBus`
+  сделает `nak`, а снятая `release`-резервация даст redelivery повторить. «Вряд ли задвоится» — не
+  аргумент. (Тот же `reserve/commit/release` у `ChargeGuard` для successful_payment.)
 - **`deliver_*` — быстрый**: дедуп → резолв `chat_id` → отправка. Тяжёлое (батч, рендер) — в
   usecase/job, не в обработчике доставки.
 - **`chat_id` резолвится по link tg→chat** (его пишет онбординг, напр. `start.mark_onboarded`);
@@ -35,7 +37,8 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
 ## Чек
 
 - Тест доставки мокает `Delivery` (фейк `tests/_fakes/delivery.py`) + дедуп; проверяет «второе
-  событие не доставлено» и «нет link → не отправлено» (rule `tests-pipeline`).
+  событие не доставлено», «нет link → не отправлено» и «сбой доставки → проброс + `release` →
+  повтор доставляет» (фейк умеет инъецировать сбой; rule `tests-pipeline`).
 - Новый/изменённый NATS-subject (контракт с бэкендом) → INFRA-HANDOFF (rule `infra-impact`).
 - Нужна новая фоновая механика (новый вид runner'а, middleware на фон) — PR в `tgbotkit`
   (rule `tgbotkit-boundary`), не правка шаблона.

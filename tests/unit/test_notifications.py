@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pylibinfra.tgbotkit import DeliveryDedup
 from tests._fakes.cache import FakeCache
-from tests._fakes.delivery import FakeDelivery
+from tests._fakes.delivery import DeliveryInjectedError, FakeDelivery
 from tests._fakes.redis import FakeRedis
 
 from bot.features.notifications.deliver import OrderDeliverer
@@ -41,3 +41,21 @@ async def test_no_link_skips() -> None:
     delivery = FakeDelivery()
     await _deliverer(FakeCache()).on_order_paid({"order_id": "o1", "user_ref": "99"}, delivery)  # type: ignore[arg-type]
     assert delivery.messages == []
+
+
+async def test_delivery_failure_propagates_and_redelivery_succeeds() -> None:
+    cache = FakeCache()
+    cache.store[chat_link_key("1")] = b"555"
+    deliverer = _deliverer(cache)
+    delivery = FakeDelivery()
+    delivery.fail_next = 1  # первая отправка падает (транзиентный сбой)
+
+    # сбой ПРОБРАСЫВАЕТСЯ (не глотается) → JsBus сделает nak; сообщение не доставлено
+    with pytest.raises(DeliveryInjectedError):
+        await deliverer.on_order_paid({"order_id": "o1", "user_ref": "1"}, delivery)  # type: ignore[arg-type]
+    assert delivery.messages == []
+
+    # release снял резервацию → redelivery доставляет, а не дедупится в тихую потерю
+    await deliverer.on_order_paid({"order_id": "o1", "user_ref": "1"}, delivery)  # type: ignore[arg-type]
+    assert len(delivery.messages) == 1
+    assert delivery.messages[0][0] == 555
