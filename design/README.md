@@ -32,10 +32,13 @@ pylibinfra (ИНФРА)                        telegram-bot-template (БИЗНЕ
 1. **[ARCHITECTURE.md](ARCHITECTURE.md)** — авторитетный синтез: видение, двух-репо модель, что
    скрыто в `tgbotkit`, тонкий composition root, анатомия фичи, интеграция с бэкендом, state,
    встроенные подсистемы (i18n/notifications/payments/webapp), деплой, два PR. **Начинать отсюда.**
-2. **[CLAUDE-SYSTEM.md](CLAUDE-SYSTEM.md)** — план `.claude`-системы (skills/rules/agents).
-3. **[STACK-AND-TOOLING.md](STACK-AND-TOOLING.md)** — версии, тулинг, CI, Dockerfile.
-4. **[ROADMAP.md](ROADMAP.md)** — фазовый план (pylibinfra PR → тонкий шаблон) + открытые вопросы.
-5. **[`_research/`](_research/)** — 18 исследовательских артефактов (детальная подложка).
+2. **[FEATURE-BLUEPRINT.md](FEATURE-BLUEPRINT.md)** — устройство фичи file-by-file: рабочие скелеты
+   всех файлов (`state/dto/errors/policy/ports/gateway/usecase/views/dialogs/getters/handlers/
+   adapters/provider`) на примере `profile`, плюс минимальная `start` и платёжная `payments`.
+3. **[CLAUDE-SYSTEM.md](CLAUDE-SYSTEM.md)** — план `.claude`-системы (skills/rules/agents).
+4. **[STACK-AND-TOOLING.md](STACK-AND-TOOLING.md)** — версии, тулинг, CI, Dockerfile.
+5. **[ROADMAP.md](ROADMAP.md)** — фазовый план (pylibinfra PR → тонкий шаблон) + открытые вопросы.
+6. **[`_research/`](_research/)** — 18 исследовательских артефактов (детальная подложка).
 
 ---
 
