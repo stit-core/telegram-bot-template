@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Conventional Commits: <type>(<scope>)?: <subject>, subject ≤ 72.
+# Типы как у go-template + meta (у бота тоже .claude-мета-слой).
+set -euo pipefail
+
+msg_file="$1"
+header="$(head -n1 "$msg_file")"
+
+# merge/revert/fixup пропускаем
+case "$header" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|refactor|docs|test|chore|meta|perf|build|ci|style)(\([a-z0-9._-]+\))?!?: .+'
+if ! [[ "$header" =~ $pattern ]]; then
+  echo "✗ commit-msg: заголовок не по Conventional Commits." >&2
+  echo "  формат: <type>(<scope>)?: <subject>" >&2
+  echo "  типы:   feat|fix|refactor|docs|test|chore|meta|perf|build|ci|style" >&2
+  echo "  было:   $header" >&2
+  exit 1
+fi
+
+if [ "${#header}" -gt 72 ]; then
+  echo "✗ commit-msg: заголовок > 72 символов (${#header})." >&2
+  exit 1
+fi

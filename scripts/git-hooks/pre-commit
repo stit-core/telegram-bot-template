@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Лёгкий pre-commit: формат + быстрый ruff-lint (без mypy/тестов — это pre-push).
+set -euo pipefail
+uv run ruff format --check . || { echo "✗ pre-commit: ruff format (запусти 'make fmt')"; exit 1; }
+uv run ruff check . || { echo "✗ pre-commit: ruff check"; exit 1; }

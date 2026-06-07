@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Линейная история форс-only: перед push гоним канонический гейт.
+set -euo pipefail
+echo "→ pre-push: make check"
+make check

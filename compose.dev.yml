@@ -1,0 +1,27 @@
+# Локальные зависимости бота: Redis (FSM/dialog/cache/dedup/link) и NATS с JetStream
+# (durable-подписки notifications). Поднять: docker compose -f compose.dev.yml up -d
+# Бот запускается отдельно (make run) — env указывает на эти адреса.
+services:
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nats:
+    image: nats:2-alpine
+    # -js включает JetStream (durable consumers для notifications)
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

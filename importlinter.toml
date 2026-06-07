@@ -1,0 +1,72 @@
+# Границы гексагона — аналог depguard у go-template. Запускается `make lint`
+# (lint-imports --config importlinter.toml). Три контракта из FEATURE-BLUEPRINT §6.
+[tool.importlinter]
+root_package = "bot"
+include_external_packages = true
+
+# 1. Слоистость ВНУТРИ фичи (DIP): presentation → views → usecase → policy → ports → dto/state.
+#    Стрелки только «вниз». dialogs|getters|handlers — независимы между собой (один слой).
+#    Сокращённые фичи (start/lang) не имеют views/ports/dto → (скобки) = опциональный слой.
+#    notifications — не диалог-гексагон (NATS-router+deliver), в этот контракт не входит.
+[[tool.importlinter.contracts]]
+name = "Слои внутри фичи (DIP, стрелка внутрь)"
+type = "layers"
+containers = [
+    "bot.features.start",
+    "bot.features.profile",
+    "bot.features.payments",
+    "bot.features.lang",
+]
+# dialogs — верхний слой (окна ссылаются на getters/handlers); getters|handlers —
+# независимы (getter=данные, handler=реакции, друг друга не импортят); ниже views→
+# usecase→policy→ports→dto/state. (скобки) = опциональный слой (нет в сокращённых фичах).
+layers = [
+    "dialogs",
+    "(getters) | (handlers)",
+    "(views)",
+    "usecase",
+    "(policy)",
+    "(ports)",
+    "(dto) | state",
+]
+
+# 2. Фичи независимы друг от друга — кроме cross-feature через adapters.py / provider.py.
+[[tool.importlinter.contracts]]
+name = "Независимость фич (cross-feature только через adapters/provider)"
+type = "independence"
+modules = [
+    "bot.features.start",
+    "bot.features.profile",
+    "bot.features.payments",
+    "bot.features.notifications",
+    "bot.features.lang",
+]
+# cross-feature разрешён только из adapters/provider; `*` = один сегмент, поэтому
+# правая часть `bot.features.*.*` матчит конкретный модуль (start.usecase), не пакет.
+ignore_imports = [
+    "bot.features.*.adapters -> bot.features.*.*",
+    "bot.features.*.provider -> bot.features.*.*",
+]
+
+# 3. Чистое ядро (usecase/policy/state/dto) не знает про инфра-детали и про свой же gateway.
+#    allow_indirect_imports: запрещаем только ПРЯМЫЕ импорты инфры. Ядро legально тянет
+#    aiogram.StatesGroup через центральный каталог platform/dialogs/states (это архитектура,
+#    не утечка) — косвенная цепочка туда не считается нарушением; прямой `import redis`/
+#    `from aiogram_dialog ...`/`import httpx`/импорт своего gateway — считается.
+[[tool.importlinter.contracts]]
+name = "Чистое ядро не импортит инфру напрямую (httpx/aiogram/redis/gateway)"
+type = "forbidden"
+allow_indirect_imports = "true"
+source_modules = [
+    "bot.features.*.usecase",
+    "bot.features.*.policy",
+    "bot.features.*.state",
+    "bot.features.*.dto",
+]
+forbidden_modules = [
+    "httpx",
+    "aiogram",
+    "aiogram_dialog",
+    "redis",
+    "bot.features.*.gateway",
+]

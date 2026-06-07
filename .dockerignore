@@ -1,0 +1,16 @@
+.venv/
+.git/
+.gitea/
+tests/
+docs/
+design/
+aiogram-dialog-docs/
+.claude/
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.log
