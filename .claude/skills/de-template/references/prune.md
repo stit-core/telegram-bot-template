@@ -32,10 +32,30 @@
 
 ## Что НЕ удалять (платформа, не фичи)
 
-- `src/bot/platform/{identity,backend,dialogs,webapp}/` — платформенная инфра-glue. Переиспользуется своими фичами. Удаляй `webapp/` **только** если форк осознанно без Mini App (`docs/stack/auth.md`).
+- `src/bot/platform/{identity,dialogs}/` — платформенная инфра-glue. Переиспользуется своими фичами.
 - `src/bot/platform/dialogs/{common,errors,states}.py` — общие виджеты, `AppErrorUX`, каталог StatesGroup. Каркас; чистится содержимое, не файлы.
 - `src/bot/shared/` — pure-утилиты (`decision`/`errors`/...). Переиспользуются всеми фичами.
 - `docs/stack/_templates/` — скаффолд-шаблоны стека.
+
+Условно (удаляй только при осознанном решении стека):
+- `src/bot/platform/webapp/` — **только** если форк без Mini App (`docs/stack/auth.md`).
+- `src/bot/platform/backend/` — **только** в local-only боте (секция ниже), когда стек заявил «без бэкенда» (`docs/stack/backends.md` пуст).
+
+## Local-only бот (без бэкенда)
+
+Бот, который **ничего не дёргает по HTTP** (вся логика в Redis/локальном состоянии: меню,
+FSM-визарды, контент). Тогда backend-слой — мёртвый вес; режь его целиком **после** того как свои
+фичи переписаны на локальные store (`cachekit`, как `start.OnboardingStore`/`lang.LocaleStore`).
+
+1. **Backend-фичи** (`profile`/`payments`/`booking` — у всех `gateway.py` поверх `platform/backend`) — прунь (чеклист выше) или перепиши gateway на локальный store.
+2. **`src/bot/platform/backend/`** целиком (`git rm -r`) — `client.py`/`errors.py`/`provider.py`.
+3. **`app.py`** — убери `HttpClientProvider()` и `BackendProvider()` (+ импорты).
+4. **`config.py`** — убери `HttpConfig`/`httpclient` из `AppConfig` (нет `HTTPCLIENT_*`-ручек).
+5. **`BotIdentity`** (`platform/identity/identity.py`) — выкинь поле `backend_user_id` (оно жило только ради бэкенда); в `IdentityProvider` убери `_resolve_backend_id`/чтение `backend_link_key`. Останутся `tg_id` + `role`.
+6. **`platform/links.py`** — убери `backend_link_key`/`BACKEND_LINK_PREFIX`, если их писал только онбординг под бэкенд.
+7. **Тесты/фейки** — `tests/backend/`, `tests/_fakes/backend.py`, `make_container(..., backend=)` параметр.
+
+Проверка та же (`Verify` ниже): import-linter не должен видеть `platform.backend`, контейнер собирается без `Client`.
 
 ## Verify
 

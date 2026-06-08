@@ -7,7 +7,7 @@
 ## Порядок и маппинг
 
 ### 1. dependencies → `docs/stack/dependencies.md`
-- kit-провайдеры в `app.py` `make_async_container(...)` — **только нужные** киты `pylibinfra`. Если форк без NATS — убери `NatsProvider()` и `OptionalStreamBus`/`notifiers`. Без бэкенда — но `BackendProvider` обычно остаётся.
+- kit-провайдеры в `app.py` `make_async_container(...)` — **только нужные** киты `pylibinfra`. Если форк без NATS — убери `NatsProvider()` и `OptionalStreamBus`/`notifiers`. Local-only бот (без HTTP-бэкенда) — убери `HttpClientProvider()`+`BackendProvider()` и весь backend-слой (чеклист — `references/prune.md` › «Local-only бот»); несколько бэкендов — наоборот, по `NewType`-клиенту на API (см. п.3 ниже).
 - порядок провайдеров критичен: `BotProvider()` даёт дефолты (Logger=nop, bundles, ErrorUX, Optional*), поэтому `LogkitProvider()` и `ExtensionProvider()` — **после** него (last-wins). `AiogramProvider()` обязателен (REQUEST-контекст для identity).
 
 ### 2. storage → `docs/stack/storage.md`
