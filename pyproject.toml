@@ -5,7 +5,7 @@ description = "Тонкий шаблон Telegram-бота: чистая биз�
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-authors = [{ name = "sftbmb-core" }]
+authors = [{ name = "stit-core" }]
 
 # Директива «вся инфра в pylibinfra»: единственная рантайм-зависимость — pylibinfra
 # с extra [tgbotkit] (tgbotkit + aiogram + aiogram-dialog + fluent.runtime). Остальная
@@ -34,7 +34,7 @@ dev = [
 # bounded i18n-кэш+pt-br→pt, payments-adv: Money/subscription/refund/prices) + httpclient
 # (breaker_name per-API) + cachekit (атомарная tag-invalidation). Свапнуть на релиз-тег.
 [tool.uv.sources]
-pylibinfra = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git", rev = "5f2d124" }
+pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "5f2d124" }
 
 [build-system]
 requires = ["hatchling"]

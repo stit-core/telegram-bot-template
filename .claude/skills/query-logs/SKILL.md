@@ -1,11 +1,11 @@
 ---
 name: query-logs
-description: Прочитать или последить логи задеплоенного бота через корп-Loki (адрес из `SFTBMB_LOKI_ADDR`) под bearer-токеном из `./.env.local`. Активируй когда юзер просит "посмотри логи", "что в логах", "следи за деплоем", "почему упало в проде", "/query-logs".
+description: Прочитать или последить логи задеплоенного бота через корп-Loki (адрес из `STIT_LOKI_ADDR`) под bearer-токеном из `./.env.local`. Активируй когда юзер просит "посмотри логи", "что в логах", "следи за деплоем", "почему упало в проде", "/query-logs".
 ---
 
 # Skill: query-logs
 
-Чтение логов бота через корп-Loki read API. Адрес берётся из `SFTBMB_LOKI_ADDR` (managed: `https://loki.sftbmb.ru`; self-hosted: свой Loki из форка `corp-infra-template`) — без переменной обёртка падает с понятным `FAIL`, не уходит молча на managed-хост. Tenant-изоляция — на стороне `tenant-auth` ForwardAuth. Этот repo даёт обёртку `scripts/tools/logs.sh` + правила, ничего к корпу не патчит.
+Чтение логов бота через корп-Loki read API. Адрес берётся из `STIT_LOKI_ADDR` (managed: `https://loki.stit.tech`; self-hosted: свой Loki из форка `corp-infra-template`) — без переменной обёртка падает с понятным `FAIL`, не уходит молча на managed-хост. Tenant-изоляция — на стороне `tenant-auth` ForwardAuth. Этот repo даёт обёртку `scripts/tools/logs.sh` + правила, ничего к корпу не патчит.
 
 **Инструмент один:** `scripts/tools/logs.sh` (три режима). Tempo (trace API) — отдельно через `curl`, в этот skill пока не входит.
 
@@ -20,13 +20,13 @@ description: Прочитать или последить логи задепл�
 
 - **Локальный dev.** `OTEL_STDOUT_ONLY=true` (дефолт в `.env.example`) — логи идут в stdout, в Loki ничего не попадает. Смотри прямо в терминал/stderr контейнера (`docker logs`, `make run`).
 - **Юзер хочет метрики** (`tg_updates_*`, `tg_update_duration_seconds`, `tg_payments_*`, доставка notifications, RPS/latency) — это VictoriaMetrics, наружу не опубликована. Скажи юзеру смотреть в Grafana.
-- **Юзер хочет трейсы по trace-id** — Tempo read API существует (`https://tempo.sftbmb.ru/api/traces/<id>`), span корня — `tg.update`, сшит `X-Request-ID=tg-<update_id>`. Но в этом skill'е не покрыт, обёртки нет. **Не** дёргай `curl` с inline-подстановкой токена из `.env.local` — значение утечёт в transcript. Нужны трейсы — заведи agent-tool по образцу `logs.sh`.
+- **Юзер хочет трейсы по trace-id** — Tempo read API существует (`https://tempo.stit.tech/api/traces/<id>`), span корня — `tg.update`, сшит `X-Request-ID=tg-<update_id>`. Но в этом skill'е не покрыт, обёртки нет. **Не** дёргай `curl` с inline-подстановкой токена из `.env.local` — значение утечёт в transcript. Нужны трейсы — заведи agent-tool по образцу `logs.sh`.
 
 ## Pre-flight
 
 - [ ] `command -v logcli` — установлен? Если нет → `make setup` (или скажи юзеру).
-- [ ] `./.env.local` существует и содержит `SFTBMB_OBS_TOKEN=...`? Сам файл читать не нужно — `logs.sh` прочитает токен через bash (значение не попадёт в чат), или вернёт `FAIL: no SFTBMB_OBS_TOKEN`.
-- [ ] `SFTBMB_LOKI_ADDR` задан (env или строка в `./.env.local`)? Обязателен — managed `https://loki.sftbmb.ru`, self-hosted — свой Loki. Без него обёртка вернёт `FAIL: no SFTBMB_LOKI_ADDR`.
+- [ ] `./.env.local` существует и содержит `STIT_OBS_TOKEN=...`? Сам файл читать не нужно — `logs.sh` прочитает токен через bash (значение не попадёт в чат), или вернёт `FAIL: no STIT_OBS_TOKEN`.
+- [ ] `STIT_LOKI_ADDR` задан (env или строка в `./.env.local`)? Обязателен — managed `https://loki.stit.tech`, self-hosted — свой Loki. Без него обёртка вернёт `FAIL: no STIT_LOKI_ADDR`.
 - [ ] Знаешь `service` label? Дефолт в шаблоне — имя бота (`OTEL_SERVICE_NAME` env при деплое; дефолт `telegram-bot`, см. `config.py`).
 - [ ] Для `watch` — оценил длительность? Не больше 10m по дефолту, юзер может расширить.
 

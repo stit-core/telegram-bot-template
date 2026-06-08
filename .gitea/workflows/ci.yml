@@ -11,7 +11,7 @@ on:
 
 # Приватный pylibinfra (git+https) — uv sync клонирует его при резолве. В раннере
 # токен подставляется через git insteadOf (secret PYLIBINFRA_TOKEN — PAT с read:repo
-# на sftbmb-core/pylibinfra). Для публичного зеркала шаг no-op.
+# на stit-core/pylibinfra). Для публичного зеркала шаг no-op.
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
       - name: private deps auth
         run: |
           if [ -n "${{ secrets.PYLIBINFRA_TOKEN }}" ]; then
-            git config --global url."https://oauth2:${{ secrets.PYLIBINFRA_TOKEN }}@git.sftbmb.ru/".insteadOf "https://git.sftbmb.ru/"
+            git config --global url."https://oauth2:${{ secrets.PYLIBINFRA_TOKEN }}@git.stit.tech/".insteadOf "https://git.stit.tech/"
           fi
       - name: sync
         run: uv sync --frozen
@@ -46,7 +46,7 @@ jobs:
       - name: private deps auth
         run: |
           if [ -n "${{ secrets.PYLIBINFRA_TOKEN }}" ]; then
-            git config --global url."https://oauth2:${{ secrets.PYLIBINFRA_TOKEN }}@git.sftbmb.ru/".insteadOf "https://git.sftbmb.ru/"
+            git config --global url."https://oauth2:${{ secrets.PYLIBINFRA_TOKEN }}@git.stit.tech/".insteadOf "https://git.stit.tech/"
           fi
       - name: sync
         run: uv sync --frozen

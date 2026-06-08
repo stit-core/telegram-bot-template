@@ -32,6 +32,6 @@ paths:
 
 | Ключ | Используется | Документация |
 |---|---|---|
-| `SFTBMB_OBS_TOKEN` | `query-logs` (чтение прод-логов/трейсов) | skill `query-logs`; источник — корп-Vault `kv/projects/<p>/<env>/otel` |
-| `SFTBMB_LOKI_ADDR` | `query-logs` (адрес корп-Loki read API; обязателен) | skill `query-logs` |
+| `STIT_OBS_TOKEN` | `query-logs` (чтение прод-логов/трейсов) | skill `query-logs`; источник — корп-Vault `kv/projects/<p>/<env>/otel` |
+| `STIT_LOKI_ADDR` | `query-logs` (адрес корп-Loki read API; обязателен) | skill `query-logs` |
 | `OTEL_TENANT` | e2e otel-agent | совпадает с `service_namespace` (корп-инвариант) |

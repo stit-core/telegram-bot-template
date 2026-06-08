@@ -21,7 +21,7 @@ RUN --mount=type=secret,id=git_token \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     sh -c 'if [ -f /run/secrets/git_token ]; then \
-              git config --global url."https://oauth2:$(cat /run/secrets/git_token)@git.sftbmb.ru/".insteadOf "https://git.sftbmb.ru/"; \
+              git config --global url."https://oauth2:$(cat /run/secrets/git_token)@git.stit.tech/".insteadOf "https://git.stit.tech/"; \
            fi' \
     && uv sync --frozen --no-dev --no-install-project
 
