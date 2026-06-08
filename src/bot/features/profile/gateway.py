@@ -6,6 +6,7 @@ httpx скрыт за platform/backend.BackendClient; транспорт-оши�
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from bot.features.profile import errors
@@ -33,11 +34,13 @@ class HttpProfileGateway:
 
     async def update_name(self, backend_user_id: str, name: str) -> ProfileView:
         try:
-            # Idempotency-Key защищает от двойных кликов/ретраев httpclient
+            # Idempotency-Key уходит в latin-1 HTTP-заголовок: кириллица в name иначе падает
+            # UnicodeEncodeError до запроса. sha256 стабилен по имени → идемпотентность цела.
+            name_digest = hashlib.sha256(name.encode()).hexdigest()
             raw = await self._http.patch(
                 f"/v1/users/{backend_user_id}",
                 json={"name": name},
-                idempotency_key=f"profile-rename:{backend_user_id}:{name}",
+                idempotency_key=f"profile-rename:{backend_user_id}:{name_digest}",
             )
         except BackendNotFound as exc:
             raise errors.ProfileNotFound(str(exc)) from exc

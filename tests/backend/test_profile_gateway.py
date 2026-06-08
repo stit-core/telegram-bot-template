@@ -6,6 +6,8 @@ update_name шлёт Idempotency-Key (защита от двойных клик�
 
 from __future__ import annotations
 
+import hashlib
+
 import httpx
 import pytest
 import respx
@@ -56,7 +58,22 @@ async def test_update_name_returns_updated_view_with_idempotency_key() -> None:
     )
     view = await _gateway().update_name("u1", "Bob")
     assert view.name == "Bob"
-    assert route.calls.last.request.headers["Idempotency-Key"] == "profile-rename:u1:Bob"
+    expected = f"profile-rename:u1:{hashlib.sha256(b'Bob').hexdigest()}"
+    assert route.calls.last.request.headers["Idempotency-Key"] == expected
+
+
+@respx.mock
+async def test_update_name_non_ascii_name_keeps_idempotency_key_ascii() -> None:
+    # кириллическое имя в Idempotency-Key падало UnicodeEncodeError при latin-1-кодировании
+    # заголовка (httpx) ДО запроса — мимо всех except. Ключ обязан быть ASCII-safe.
+    route = respx.patch("http://backend/v1/users/u1").mock(
+        return_value=httpx.Response(200, json={"name": "Пётр", "email": "a@x.io", "premium": False})
+    )
+    view = await _gateway().update_name("u1", "Пётр")
+    assert view.name == "Пётр"
+    key = route.calls.last.request.headers["Idempotency-Key"]
+    key.encode("latin-1")  # HTTP-заголовок: не должно бросать
+    assert key.startswith("profile-rename:u1:")
 
 
 @respx.mock
