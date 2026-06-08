@@ -14,26 +14,12 @@ Active-секцией, а не хвостом в удаляемой.
 **Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
 mypy + pytest). См. `.claude/CLAUDE.md`.
 
-**Current focus:** Фазы 0 и 1 закрыты в ките (шаблон пинит `298f005`). Идёт Фаза 2 — сеть
-качества/корректности (`audit/roadmap.md`). Мульти-бот вне скоупа.
+**Current focus:** Фазы 0–2 закрыты в ките и шаблоне (шаблон пинит `0869cba`). Активной задачи нет;
+Фаза 3 (расширяемость) и Фаза 4 (гигиена) `audit/roadmap.md` — по потребности. Мульти-бот вне скоупа.
 
 ## Active
 
-### phase2-quality-net
-
-Закрыть Фазу 2 `audit/roadmap.md` — убрать «ложный зелёный» и тихие конфиг-ловушки. Микс TPL+KIT
-(KIT-правки прямо в соседний `pylibinfra`, затем перепин). Пункты:
-- `2.1` integration-слой (TPL+KIT): 2–3 теста на боевом redis/nats (DeliveryDedup TTL reserve/commit,
-  guard TTL, JetStream nak→redelivery, golden на потерю). Сейчас 0 integration в шаблоне.
-- `2.2` error-пути (TPL): gateway-маппинг, глобальный `AppErrorUX`, `payments/handlers`.
-- `2.3` `[tool.pydantic-mypy]` `init_typed`+`init_forbid_extra` (TPL+KIT) — ловит JSON→DTO-ошибки.
-- `2.4` state-TTL (KIT+TPL): `BOT_STATE_TTL` → `RedisStorage` + `cache.set(ttl=)` для onboard/link/locale.
-- `2.5` мёртвый конфиг (KIT): `BOT_SHUTDOWN_DRAIN` (polling-drain in-flight), `write_timeout`,
-  `max_conn_lifetime`, bruteforce `window` — реализовать ИЛИ удалить поле+docstring.
-- `2.6` локаль фоновых уведомлений (KIT+TPL): locale-канал в `Delivery` + ключ `notifications-*` в `.ftl`.
-- `2.7` согласовать мажор mypy (шаблон → `>=2.1,<3`), перелочить.
-
-**Gate:** оба репо зелёные (`make check` / `uv run …`). Коммит/пуш — по явной просьбе.
+_Активных задач нет._ Следующее — Фаза 3/4 `audit/roadmap.md`, заводится по потребности через `/plan`.
 
 ## Backlog
 
@@ -44,6 +30,7 @@ mypy + pytest). См. `.claude/CLAUDE.md`.
 - INFRA-HANDOFF Фазы 1 (при релизе/деплое): polling биндит health-порт (`HTTP_*`), новые env-ручки
   (`NATS_JS_MAX_DELIVER/BACKOFF/FLOW_CONTROL/IDLE_HEARTBEAT/DLQ_ENABLED`, `NATS_MAX_RECONNECTS=-1`,
   `BOT_FLOOD_ENABLED`, `BOT_RATE_GLOBAL`, `BOT_RATE_PER_CHAT`, `BOT_RETRY_AFTER_ATTEMPTS`), DLQ-сабжект
-  `dlq.<subject>`. Передать инфра-админу через `/release` handoff.
-- Свапнуть пин `pylibinfra` с коммита `298f005` на release-тег `vX.Y.Z`, когда `pylibinfra`
+  `dlq.<subject>`. Опц. Фазы 2: `BOT_STATE_TTL` (TTL FSM-стейта, дефолт 0=вечно). Передать
+  инфра-админу через `/release` handoff.
+- Свапнуть пин `pylibinfra` с коммита `0869cba` на release-тег `vX.Y.Z`, когда `pylibinfra`
   будет тегнут на ревизии с `tgbotkit` (`pyproject.toml` → `[tool.uv.sources]`).
