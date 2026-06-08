@@ -1,6 +1,6 @@
 # Аудит области p-testkit — pylibinfra testkit (568 LOC)
 
-Каталог: `/root/git/sftbmb/stit-core/pylibinfra/src/pylibinfra/testkit/`
+Каталог: `/root/git/stit/stit-core/pylibinfra/src/pylibinfra/testkit/`
 
 ## Что смотрел
 

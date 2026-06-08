@@ -1,6 +1,6 @@
 # telegram-bot-template — гайд для агентов
 
-Тонкий шаблон Telegram-бота sftbmb: **чистая бизнес-логика** на `aiogram` 3.28 + `aiogram_dialog`
+Тонкий шаблон Telegram-бота stit: **чистая бизнес-логика** на `aiogram` 3.28 + `aiogram_dialog`
 2.6 + `dishka` поверх `pylibinfra[tgbotkit]`. Вся инфра бота (Bot/Dispatcher/RedisStorage,
 middleware, webhook/polling runner, dishka-setup, error-UX, метрики, generic-механика
 i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не здесь. В шаблоне — фичи

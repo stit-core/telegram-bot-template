@@ -2,9 +2,9 @@
 
 Ты — аудитор в дотошном многоагентном аудите Telegram-бот-платформы. Два репозитория:
 
-- **Тонкий ШАБЛОН бота**: `/root/git/sftbmb/stit-core/telegram-bot-template` (`src/bot` — чистая
+- **Тонкий ШАБЛОН бота**: `/root/git/stit/stit-core/telegram-bot-template` (`src/bot` — чистая
   бизнес-логика на aiogram 3.28 + aiogram_dialog 2.6 + dishka).
-- **Инфра-библиотека pylibinfra**: `/root/git/sftbmb/stit-core/pylibinfra` (`src/pylibinfra` —
+- **Инфра-библиотека pylibinfra**: `/root/git/stit/stit-core/pylibinfra` (`src/pylibinfra` —
   19 «китов»; бот стоит на extra `[tgbotkit]`).
 
 ## Философия, против которой меряем
