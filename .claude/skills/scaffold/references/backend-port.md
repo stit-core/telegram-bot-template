@@ -11,6 +11,8 @@
 
 Образцы: backend — `profile.ports.BackendGateway` + `profile.gateway.HttpProfileGateway`; cross-feature — `profile.ports.OnboardingReader` + `profile.adapters.OnboardingReaderAdapter`.
 
+Ходишь в **несколько** независимых API (CRM/LLM/биллинг) — это не порт фичи, а platform-wiring: раздел **C. Несколько именованных бэкендов** ниже.
+
 ## Когда применять
 
 - «Фиче нужно дёрнуть `GET /v1/...`» / «добавь мутацию на бэкенд».
@@ -101,6 +103,42 @@ def usecase(self, gw: BackendGateway, onb: OnboardingReader, log: Logger) -> Pro
     return ProfileUsecase(gw, onb, log)
 ```
 `StartUsecase` резолвится из контейнера (start.Provider зарегистрирован в `app.py`). Если чужого usecase-метода нет (`status`) — добавь его в фичу-источник.
+
+---
+
+## C. Несколько именованных бэкендов
+
+Бот ходит в **несколько** независимых API (CRM, LLM-сервис, биллинг…). dishka ключует зависимости **по типу** — два `BackendClient` коллизят (второй `@provide` перетрёт первый). Различай клиентов **`NewType`-маркерами** (как `pgkit.ReplicaPool = NewType("ReplicaPool", object)` различает мастер/реплику), по одному провайдеру на клиент в `platform/backend/provider.py`. Каждому — свой `httpclient.Config` (свой `base_url` + свой `breaker_name`, иначе breaker-метрики разных API схлопнутся в один ряд).
+
+```python
+# platform/backend/provider.py
+from typing import NewType
+import httpx
+from pylibinfra.httpclient import BreakerConfig, Client, Config
+
+CrmClient = NewType("CrmClient", BackendClient)
+LlmClient = NewType("LlmClient", BackendClient)
+
+
+class BackendProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def crm(self, log: Logger) -> CrmClient:
+        cfg = Config(base_url=os.environ["CRM_BASE_URL"], breaker=BreakerConfig(name="crm"))
+        http = httpx.AsyncClient(base_url=cfg.base_url, timeout=cfg.timeout)
+        return CrmClient(BackendClient(Client(cfg, http), log))
+
+    @provide
+    def llm(self, log: Logger) -> LlmClient:
+        cfg = Config(base_url=os.environ["LLM_BASE_URL"], breaker=BreakerConfig(name="llm"))
+        http = httpx.AsyncClient(base_url=cfg.base_url, timeout=cfg.timeout)
+        return LlmClient(BackendClient(Client(cfg, http), log))
+```
+
+Гейт фичи зависит от **маркера**, не от `BackendClient`: `def gateway(self, http: CrmClient) -> CrmGateway`. `breaker_name` → label `{"name":"crm"}` в `http_client_breaker_*` (env `HTTPCLIENT_BREAKER_NAME` задаёт дефолт одиночного клиента). Маркеры/URL/таймауты — `docs/stack/backends.md` → `de-template` wiring (`references/wiring.md`).
+
+> Новый `*_BASE_URL` — инфра-поверхность: оформи INFRA-HANDOFF (rule `infra-impact`).
 
 ---
 
