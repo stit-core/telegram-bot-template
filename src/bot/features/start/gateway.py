@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pylibinfra.cachekit import Cache
 
-from bot.platform.links import chat_link_key, onboard_key
+from bot.platform.links import LINK_TTL, chat_link_key, onboard_key
 
 
 class CacheOnboardingStore:
@@ -20,6 +20,6 @@ class CacheOnboardingStore:
         return found
 
     async def mark_onboarded(self, tg_id: int, chat_id: int) -> None:
-        await self._cache.set(onboard_key(tg_id), b"1")
+        await self._cache.set(onboard_key(tg_id), b"1", LINK_TTL)
         # link для фоновой доставки notifications: user_ref(=tg_id) → chat_id
-        await self._cache.set(chat_link_key(tg_id), str(chat_id).encode())
+        await self._cache.set(chat_link_key(tg_id), str(chat_id).encode(), LINK_TTL)

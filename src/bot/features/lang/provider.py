@@ -8,6 +8,7 @@ from pylibinfra.tgbotkit import LocalePrefStore
 
 from bot.features.lang.ports import LocaleStore
 from bot.features.lang.usecase import LangUsecase
+from bot.platform.links import LINK_TTL
 
 
 class LangProvider(Provider):
@@ -15,7 +16,7 @@ class LangProvider(Provider):
 
     @provide
     def store(self, cache: Cache) -> LocaleStore:
-        return LocalePrefStore(cache)
+        return LocalePrefStore(cache, ttl=LINK_TTL)
 
     @provide
     def usecase(self, store: LocaleStore) -> LangUsecase:

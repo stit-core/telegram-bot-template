@@ -13,6 +13,7 @@ from datetime import timedelta
 class FakeCache:
     def __init__(self) -> None:
         self.store: dict[str, bytes] = {}
+        self.ttls: dict[str, timedelta | None] = {}  # последний TTL на ключ (для ассертов)
 
     async def get(self, key: str) -> tuple[bytes | None, bool]:
         val = self.store.get(key)
@@ -27,6 +28,7 @@ class FakeCache:
         tags: Sequence[str] = (),
     ) -> None:
         self.store[key] = value
+        self.ttls[key] = ttl
 
     async def delete(self, *keys: str) -> None:
         for k in keys:
