@@ -14,6 +14,7 @@ from bot.platform.dialogs.common import back_to_menu
 offer_window = Window(
     Format("🛒 <b>{title}</b>\n{description}\n\n💎 {amount} ⭐"),
     Button(I18NFormat("payments-buy"), id="buy", on_click=handlers.on_buy),
+    Button(I18NFormat("payments-subscribe"), id="subscribe", on_click=handlers.on_subscribe),
     back_to_menu("pay_back"),
     state=PaymentsSG.OFFER,
     getter=getters.offer_getter,

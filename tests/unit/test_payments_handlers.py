@@ -21,22 +21,31 @@ import redis.asyncio as aioredis
 from aiogram import Bot
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from pylibinfra.logkit import nop
+from pylibinfra.tgbotkit import Money
 from tests._fakes.redis import FakeRedis
 
 from bot.features.payments import errors, handlers
 from bot.features.payments.dto import Order
 from bot.features.payments.usecase import PaymentsUsecase
+from bot.platform.identity import BotIdentity
 
 pytestmark = pytest.mark.unit
 
-_ORDER = Order(order_id="o1", title="Премиум", description="30д", amount=100, currency="XTR")
+_ORDER = Order(order_id="o1", title="Премиум", description="30д", price=Money(100))
 
 
 class _Gateway:
-    def __init__(self, order: Order | None = None, fulfill_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        order: Order | None = None,
+        fulfill_error: Exception | None = None,
+        payer: int | None = None,
+    ) -> None:
         self._order = order
         self._fulfill_error = fulfill_error
+        self._payer = payer
         self.fulfilled: list[tuple[str, str]] = []
+        self.revoked: list[tuple[str, str]] = []
 
     async def get_offer(self, offer_id: str) -> Order:
         assert self._order is not None
@@ -47,11 +56,20 @@ class _Gateway:
             raise self._fulfill_error
         self.fulfilled.append((order_id, charge_id))
 
+    async def revoke(self, order_id: str, charge_id: str) -> None:
+        self.revoked.append((order_id, charge_id))
+
+    async def payer_of(self, charge_id: str) -> int | None:
+        return self._payer
+
 
 class _FakeBot:
-    def __init__(self) -> None:
+    def __init__(self, refund_ok: bool = True) -> None:
         self.invoices: list[tuple[int, dict[str, Any]]] = []
         self.pre_checkout: list[tuple[str, bool]] = []
+        self.subscription_links: list[dict[str, Any]] = []
+        self.refunds: list[tuple[int, str]] = []
+        self._refund_ok = refund_ok
 
     async def send_invoice(self, chat_id: int, **invoice: Any) -> None:
         self.invoices.append((chat_id, invoice))
@@ -61,15 +79,26 @@ class _FakeBot:
     ) -> None:
         self.pre_checkout.append((query_id, ok))
 
+    async def create_invoice_link(self, **kwargs: Any) -> str:
+        self.subscription_links.append(kwargs)
+        return "https://t.me/$sub-link"
+
+    async def refund_star_payment(self, user_id: int, telegram_payment_charge_id: str) -> bool:
+        self.refunds.append((user_id, telegram_payment_charge_id))
+        return self._refund_ok
+
 
 class _Deps(Provider):
     scope = Scope.APP
 
-    def __init__(self, gateway: _Gateway, bot: _FakeBot, redis: FakeRedis) -> None:
+    def __init__(
+        self, gateway: _Gateway, bot: _FakeBot, redis: FakeRedis, role: str = "user"
+    ) -> None:
         super().__init__()
         self._gateway = gateway
         self._bot = bot
         self._redis = redis
+        self._role = role
 
     @provide
     def usecase(self) -> PaymentsUsecase:
@@ -83,9 +112,23 @@ class _Deps(Provider):
     def redis(self) -> aioredis.Redis:
         return self._redis  # type: ignore[return-value]
 
+    @provide
+    def identity(self) -> BotIdentity:
+        return BotIdentity(tg_id=1, backend_user_id="1", role=self._role)
 
-def _container(gateway: _Gateway, bot: _FakeBot, redis: FakeRedis) -> AsyncContainer:
-    return make_async_container(_Deps(gateway, bot, redis))
+
+def _container(
+    gateway: _Gateway, bot: _FakeBot, redis: FakeRedis, role: str = "user"
+) -> AsyncContainer:
+    return make_async_container(_Deps(gateway, bot, redis, role))
+
+
+class _Message:
+    def __init__(self) -> None:
+        self.answers: list[str] = []
+
+    async def answer(self, text: str) -> None:
+        self.answers.append(text)
 
 
 class _Callback:
@@ -198,3 +241,80 @@ async def test_on_successful_payment_releases_on_failure() -> None:
         await _complete(gw, _payment_message(sp), redis)
     # сбой выдачи → ключ снят, чтобы повтор апдейта смог выдать
     assert "tg:charge:charge-1" not in redis.store
+
+
+async def test_on_subscribe_builds_link_and_sends() -> None:
+    bot = _FakeBot()
+    container = _container(_Gateway(_ORDER), bot, FakeRedis())
+    msg = _Message()
+    cb = _Callback(msg)
+    async with container() as rc:
+        manager = SimpleNamespace(middleware_data={"dishka_container": rc})
+        await handlers.on_subscribe(cb, None, manager)  # type: ignore[arg-type]
+    assert bot.subscription_links[0]["payload"] == "o1"
+    assert msg.answers == ["https://t.me/$sub-link"]  # i18n в тесте off → шлём голый линк
+    assert cb.answered is True
+    await container.close()
+
+
+def _refunded_message(rp: Any) -> Any:
+    return SimpleNamespace(refunded_payment=rp)
+
+
+async def test_on_refunded_payment_reverses_and_commits() -> None:
+    gw = _Gateway(_ORDER)
+    redis = FakeRedis()
+    rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
+    container = _container(gw, _FakeBot(), redis)
+    async with container() as rc:
+        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[arg-type]
+    await container.close()
+    assert gw.revoked == [("o1", "ch-1")]
+    assert redis.store["tg:refund:ch-1"] == b"1"
+
+
+async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
+    gw = _Gateway(_ORDER)
+    redis = FakeRedis()
+    redis.store["tg:refund:ch-1"] = b"1"  # откат уже выполнен/в процессе
+    rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
+    container = _container(gw, _FakeBot(), redis)
+    async with container() as rc:
+        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[arg-type]
+    await container.close()
+    assert gw.revoked == []
+
+
+async def test_on_refund_command_admin_refunds_payer() -> None:
+    bot = _FakeBot()
+    gw = _Gateway(_ORDER, payer=42)
+    container = _container(gw, bot, FakeRedis(), role="admin")
+    msg = _Message()
+    cmd = SimpleNamespace(args="ch-1")
+    async with container() as rc:
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+    await container.close()
+    assert bot.refunds == [(42, "ch-1")]
+
+
+async def test_on_refund_command_denies_non_admin() -> None:
+    bot = _FakeBot()
+    container = _container(_Gateway(_ORDER, payer=42), bot, FakeRedis(), role="user")
+    msg = _Message()
+    cmd = SimpleNamespace(args="ch-1")
+    async with container() as rc:
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+    await container.close()
+    assert bot.refunds == []  # не-админ не инициирует возврат
+    assert msg.answers  # получил отказ
+
+
+async def test_on_refund_command_unknown_payer() -> None:
+    bot = _FakeBot()
+    container = _container(_Gateway(_ORDER, payer=None), bot, FakeRedis(), role="admin")
+    msg = _Message()
+    cmd = SimpleNamespace(args="ghost")
+    async with container() as rc:
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+    await container.close()
+    assert bot.refunds == []  # плательщик не найден → без обращения к Telegram

@@ -58,8 +58,8 @@ async def test_get_offer_returns_order() -> None:
     )
     order = await _gateway().get_offer("premium-30d")
     assert order.order_id == "premium-30d"
-    assert order.amount == 100
-    assert order.currency == "XTR"  # дефолт, когда бэкенд не прислал валюту
+    assert order.price.amount_minor == 100
+    assert order.price.currency == "XTR"  # дефолт, когда бэкенд не прислал валюту
 
 
 @respx.mock
@@ -74,3 +74,37 @@ async def test_get_offer_maps_unavailable_to_payment_error() -> None:
     respx.get("http://backend/v1/offers/premium-30d").mock(return_value=httpx.Response(503))
     with pytest.raises(errors.PaymentError):
         await _gateway().get_offer("premium-30d")
+
+
+@respx.mock
+async def test_revoke_treats_conflict_and_404_as_success() -> None:
+    # идемпотентный откат: 409/404 = нечего откатывать/уже откачено, без исключения
+    respx.post("http://backend/v1/orders/o1/revoke").mock(return_value=httpx.Response(409))
+    await _gateway().revoke("o1", "charge-1")
+    respx.post("http://backend/v1/orders/o2/revoke").mock(return_value=httpx.Response(404))
+    await _gateway().revoke("o2", "charge-2")
+
+
+@respx.mock
+async def test_revoke_sends_namespaced_idempotency_key() -> None:
+    route = respx.post("http://backend/v1/orders/o1/revoke").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    await _gateway().revoke("o1", "charge-1")
+    # ключ откатa отделён от ключа выдачи (revoke:<charge>), иначе fulfill и revoke
+    # одного charge схлопнулись бы на бэкенде в один идемпотентный слот
+    assert route.calls.last.request.headers["Idempotency-Key"] == "revoke:charge-1"
+
+
+@respx.mock
+async def test_payer_of_returns_user_id() -> None:
+    respx.get("http://backend/v1/charges/charge-1").mock(
+        return_value=httpx.Response(200, json={"user_id": 42})
+    )
+    assert await _gateway().payer_of("charge-1") == 42
+
+
+@respx.mock
+async def test_payer_of_returns_none_on_404() -> None:
+    respx.get("http://backend/v1/charges/ghost").mock(return_value=httpx.Response(404))
+    assert await _gateway().payer_of("ghost") is None

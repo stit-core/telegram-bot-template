@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from pylibinfra.logkit import nop
+from pylibinfra.tgbotkit import Money
 
 from bot.features.payments import errors as pay_errors
 from bot.features.payments.dto import Order
@@ -99,7 +100,7 @@ def _prof_container(gateway: _ProfGateway) -> AsyncContainer:
 
 
 async def test_offer_getter_returns_offer_data() -> None:
-    order = Order(order_id="o1", title="Премиум", description="30д", amount=100, currency="XTR")
+    order = Order(order_id="o1", title="Премиум", description="30д", price=Money(100))
     container = _pay_container(_PayGateway(order=order))
     async with container() as rc:
         data = await offer_getter(dishka_container=rc)  # type: ignore[call-arg]

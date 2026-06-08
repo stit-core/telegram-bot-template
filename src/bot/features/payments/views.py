@@ -8,4 +8,8 @@ from bot.features.payments.dto import Order
 
 
 def to_offer(order: Order) -> dict[str, Any]:
-    return {"title": order.title, "description": order.description, "amount": order.amount}
+    return {
+        "title": order.title,
+        "description": order.description,
+        "amount": order.price.amount_minor,
+    }
