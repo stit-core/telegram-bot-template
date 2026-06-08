@@ -13,6 +13,7 @@ from bot.platform.dialogs import states
 ProfileSG = states.Profile
 
 
+# demo-only: reference-черновик dialog_data; нет живого вызывающего — wire или prune.
 class ProfileDialogData(BaseModel):
     draft_name: str | None = None
 

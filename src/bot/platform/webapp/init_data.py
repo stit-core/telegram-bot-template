@@ -21,6 +21,7 @@ class WebAppUser:
 
 
 def validate_webapp_user(init_data: str, bot_token: str, *, max_age: int = 300) -> WebAppUser:
+    # demo-only: reference валидатор initData; нет живого вызывающего — wire или prune.
     fields = validate_init_data(init_data, bot_token, max_age=max_age)  # raise InitDataError
     raw_user = fields.get("user")
     if not raw_user:

@@ -34,5 +34,6 @@ class ProfileUsecase:
         self._log.info("profile.renamed", tg_id=identity.tg_id)
         return view
 
+    # demo-only: reference cross-feature чтения; нет живого вызывающего — wire или prune.
     async def is_first_time(self, tg_id: int) -> bool:
         return not await self._onboarding.is_onboarded(tg_id)
