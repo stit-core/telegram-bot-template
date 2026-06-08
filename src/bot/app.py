@@ -21,7 +21,7 @@ from pylibinfra.tgbotkit import BotProvider, BotRunner
 
 from bot.config import AppConfigProvider
 from bot.extensions import ExtensionProvider
-from bot.features import lang, payments, profile, start
+from bot.features import booking, lang, payments, profile, start
 from bot.platform.backend import BackendProvider
 from bot.platform.identity import IdentityProvider
 
@@ -45,6 +45,7 @@ def build_container() -> AsyncContainer:
         profile.Provider(),
         payments.Provider(),
         lang.Provider(),
+        booking.Provider(),
         # ── точки расширения tgbotkit (override дефолтов BotProvider) ──
         ExtensionProvider(),
     )

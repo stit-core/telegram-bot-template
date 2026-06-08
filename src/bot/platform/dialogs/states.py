@@ -22,3 +22,10 @@ class Payments(StatesGroup):
 
 class Lang(StatesGroup):
     CHOOSE = State()
+
+
+class Booking(StatesGroup):
+    SERVICES = State()
+    DETAILS = State()
+    ADDRESS = State()
+    CONFIRM = State()

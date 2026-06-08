@@ -26,7 +26,7 @@ from pylibinfra.tgbotkit import (
     RouterBundle,
 )
 
-from bot.features import lang, notifications, payments, profile, start
+from bot.features import booking, lang, notifications, payments, profile, start
 from bot.platform.dialogs import AppErrorUX
 
 
@@ -35,7 +35,7 @@ class ExtensionProvider(Provider):
 
     @provide
     def routers(self) -> RouterBundle:
-        return (start.dialog, profile.dialog, payments.dialog, lang.dialog)
+        return (start.dialog, profile.dialog, payments.dialog, lang.dialog, booking.dialog)
 
     @provide
     def commands(self) -> CommandBundle:

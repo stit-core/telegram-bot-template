@@ -33,6 +33,7 @@ _I18N_RESOURCES = [
     "payments.ftl",
     "lang.ftl",
     "notifications.ftl",
+    "booking.ftl",
 ]
 _DEFAULT_LOCALE = "ru"
 _DEFAULT_SERVICE_NAME = "telegram-bot"

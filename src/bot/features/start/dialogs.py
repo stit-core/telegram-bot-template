@@ -20,6 +20,7 @@ menu_window = Window(
     Column(
         open_dialog("start-btn-profile", states.Profile.VIEW, "to_profile"),
         open_dialog("start-btn-buy", states.Payments.OFFER, "to_buy"),
+        open_dialog("start-btn-book", states.Booking.SERVICES, "to_book"),
         open_dialog("start-btn-lang", states.Lang.CHOOSE, "to_lang"),
     ),
     state=states.Start.MENU,

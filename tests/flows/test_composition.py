@@ -13,7 +13,7 @@ from aiogram_dialog import setup_dialogs
 from opentelemetry.trace import Tracer
 
 from bot import app
-from bot.features import lang, payments, profile, start
+from bot.features import booking, lang, payments, profile, start
 
 pytestmark = pytest.mark.dialog
 
@@ -25,7 +25,7 @@ async def test_container_assembles_and_dialogs_collision_free(
     monkeypatch.setenv("OTEL_SERVICE_NAME", "bot-test")
 
     # dialog'и — module-level синглтоны; отвяжем от dispatcher'ов прошлых тестов
-    for dialog in (start.dialog, profile.dialog, payments.dialog, lang.dialog):
+    for dialog in (start.dialog, profile.dialog, payments.dialog, lang.dialog, booking.dialog):
         dialog._parent_router = None  # type: ignore[attr-defined]
 
     container = app.build_container()

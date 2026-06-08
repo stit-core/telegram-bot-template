@@ -16,6 +16,7 @@ containers = [
     "bot.features.profile",
     "bot.features.payments",
     "bot.features.lang",
+    "bot.features.booking",
 ]
 # dialogs — верхний слой (окна ссылаются на getters/handlers); getters|handlers —
 # независимы (getter=данные, handler=реакции, друг друга не импортят); ниже views→
@@ -40,6 +41,7 @@ modules = [
     "bot.features.payments",
     "bot.features.notifications",
     "bot.features.lang",
+    "bot.features.booking",
 ]
 # cross-feature разрешён только из adapters/provider; `*` = один сегмент, поэтому
 # правая часть `bot.features.*.*` матчит конкретный модуль (start.usecase), не пакет.
