@@ -14,12 +14,13 @@ Active-секцией, а не хвостом в удаляемой.
 **Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
 mypy + pytest). См. `.claude/CLAUDE.md`.
 
-**Current focus:** Фазы 0–2 закрыты в ките и шаблоне (шаблон пинит `0869cba`). Активной задачи нет;
-Фаза 3 (расширяемость) и Фаза 4 (гигиена) `audit/roadmap.md` — по потребности. Мульти-бот вне скоупа.
+**Current focus:** Фазы 0–2 и 4 закрыты в ките и шаблоне (шаблон пинит `2f3260a`). Активной задачи
+нет; осталась Фаза 3 (расширяемость, `audit/roadmap.md`) — по потребности. Мульти-бот вне скоупа.
 
 ## Active
 
-_Активных задач нет._ Следующее — Фаза 3/4 `audit/roadmap.md`, заводится по потребности через `/plan`.
+_Активных задач нет._ Следующее — Фаза 3 `audit/roadmap.md` (reference-фичи 3.1/3.2/3.3/3.5; 3.4
+исключена), заводится по потребности через `/plan`.
 
 ## Backlog
 
@@ -32,5 +33,6 @@ _Активных задач нет._ Следующее — Фаза 3/4 `audit
   `BOT_FLOOD_ENABLED`, `BOT_RATE_GLOBAL`, `BOT_RATE_PER_CHAT`, `BOT_RETRY_AFTER_ATTEMPTS`), DLQ-сабжект
   `dlq.<subject>`. Опц. Фазы 2: `BOT_STATE_TTL` (TTL FSM-стейта, дефолт 0=вечно). Передать
   инфра-админу через `/release` handoff.
-- Свапнуть пин `pylibinfra` с коммита `0869cba` на release-тег `vX.Y.Z`, когда `pylibinfra`
-  будет тегнут на ревизии с `tgbotkit` (`pyproject.toml` → `[tool.uv.sources]`).
+- Свапнуть пин `pylibinfra` с коммита `2f3260a` на release-тег `vX.Y.Z`, когда `pylibinfra`
+  будет тегнут на ревизии с `tgbotkit` (`pyproject.toml` → `[tool.uv.sources]`). Кит ушёл вперёд
+  на `0b43de8` (Фаза 4 sec-гигиена authnkit/auditkit — бот эти киты не использует, перепин не нужен).
