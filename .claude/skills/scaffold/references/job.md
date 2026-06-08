@@ -42,27 +42,29 @@ class CleanupUsecase:
 
 `timerkit` собирает периодические задачи через тип-обёртку (идиома `list[PeriodicJob]`, как `RouterBundle`/`CommandBundle`). Шаблон **декларирует** джобу и регистрирует в точке расширения; рантайм планировщика — в kit'е.
 
+`PeriodicJob` — `dataclass(name, interval, handler)`; `handler` это `Callable[[], Awaitable[None]]` (Runner зовёт `handler()` **без аргументов**), поэтому зависимости захватываются замыканием через фабрику, а не инъекцией в сигнатуру.
+
 ```python
 # features/cleanup/jobs.py
 from pylibinfra.timerkit import PeriodicJob
 from bot.features.cleanup.usecase import CleanupUsecase
 
-async def _run_cleanup(uc: CleanupUsecase) -> None:   # зависимости резолвит контейнер
-    await uc.purge_expired()
-
-cleanup_job = PeriodicJob(_run_cleanup, interval_seconds=300)   # API timerkit — сверь с docs/stack/dependencies.md
+def build_cleanup_job(uc: CleanupUsecase) -> PeriodicJob:
+    async def _run() -> None:                  # uc захвачен замыканием
+        await uc.purge_expired()
+    return PeriodicJob(name="cleanup-drafts", interval=300.0, handler=_run)
 ```
 
-> Точная сигнатура `PeriodicJob` / способ инъекции зависимостей — по API `timerkit` в `pylibinfra` (`docs/stack/dependencies.md § Generates`). Если в проекте джоб ещё не было — точка расширения (`list[PeriodicJob]` или аналог) могла не существовать в `extensions.py`/`app.py`: её добавление в kit-интеграцию — `infra-handoff`.
+> `timerkit` — опциональный kit (`docs/stack/dependencies.md`). Если в проекте джоб ещё не было — точка расширения (`list[PeriodicJob]`) могла не существовать в `extensions.py`/`app.py`: её добавление в kit-интеграцию — `infra-handoff` (`runtime-dep`).
 
 ## 4. Если джоба шлёт в Telegram — фоновая доставка
 
-Фоновая отправка идёт **не через апдейт**, а через `BgManager`/`Delivery` (как notifications). Грабли (request_id/локаль/пустой стек/throttle) закрыты в `Delivery` (kit). Не дёргай `bot.send_message` напрямую из джобы без обёртки — потеряешь корреляцию и наткнёшься на throttle. Переиспользуй паттерн `features/notifications/deliver.py` (`Delivery.send_message(chat_id, text)`), резолвя `chat_id` по `platform/links.py` (`chat_link_key`).
+Фоновая отправка идёт **не через апдейт**, а через `BgManager`/`Delivery` (как notifications). Грабли request_id/пустой стек/throttle закрыты в `Delivery` (kit); **локаль фон не резолвит сам** — бери её через `LocalePrefStore.get(user_id)` и рендери ключ через `Delivery.localize(locale, key, args)`. Не дёргай `bot.send_message` напрямую из джобы без обёртки — потеряешь корреляцию и наткнёшься на throttle. Переиспользуй паттерн `features/notifications/deliver.py`, резолвя `chat_id` по `platform/links.py` (`chat_link_key`).
 
 ## 5. Регистрация
 
-- экспортируй `cleanup_job` из фасада фичи;
-- добавь в точку расширения джоб в `app.py`/`extensions.py` (по образцу `RouterBundle`/`NotifierBundle`);
+- экспортируй `build_cleanup_job` из фасада фичи;
+- собери `list[PeriodicJob]` в провайдере (резолвит `CleanupUsecase` → `build_cleanup_job(uc)`), по образцу `NotifierBundle` в `extensions.py`;
 - провайдер фичи (`CleanupProvider`) — в `make_async_container(...)`.
 
 ## 6. Тесты + верификация

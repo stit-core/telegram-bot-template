@@ -17,7 +17,7 @@
 
 ### 3. backends → `docs/stack/backends.md`
 - `BACKEND_*_BASE_URL`, таймауты, breaker — через httpclient `Config` в `config.py`.
-- несколько бэкендов = именованные клиенты/провайдеры в `platform/backend/provider.py`.
+- несколько бэкендов = **различимые типы** клиентов: dishka ключует по типу, два `BackendClient` коллизят. Заведи `NewType`-маркеры (`CrmClient`/`LlmClient`…) + провайдер на каждый в `platform/backend/provider.py`.
 - доменный маппинг ошибок (`BackendNotFound`/`BackendUnavailable`) — в `platform/backend/errors.py` (общий), уточняется в `gateway.py` каждой фичи.
 
 ### 4. dialogs → `docs/stack/dialogs.md`
