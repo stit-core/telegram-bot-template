@@ -29,12 +29,11 @@ dev = [
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на конкретную ревизию инфры, как go-сервис на go.mod-версию.
-# СЕЙЧАС: коммит 0869cba — tgbotkit с reserve/commit-дедупом, recovery→dp.errors,
-# JetStream failure-path/drain, fail-open/reconnect/health-probes, GCRA rate-limit,
-# SecretStr, bruteforce window, BOT_STATE_TTL→RedisStorage, locale-канал Delivery.
-# Свапнуть на релиз-тег (tag = "vX.Y.Z"), как только pylibinfra будет тегнут.
+# СЕЙЧАС: коммит 2f3260a — tgbotkit (reserve/commit-дедуп, recovery→dp.errors, JetStream
+# failure-path/drain, GCRA rate-limit, SecretStr, BOT_STATE_TTL, locale-канал Delivery,
+# bounded i18n-кэш+pt-br→pt) + cachekit (атомарная tag-invalidation). Свапнуть на релиз-тег.
 [tool.uv.sources]
-pylibinfra = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git", rev = "0869cba" }
+pylibinfra = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git", rev = "2f3260a" }
 
 [build-system]
 requires = ["hatchling"]
