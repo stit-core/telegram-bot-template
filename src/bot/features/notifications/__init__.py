@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import redis.asyncio as aioredis
 from pylibinfra.cachekit import Cache
-from pylibinfra.tgbotkit import DeliveryDedup, NotificationRouter
+from pylibinfra.tgbotkit import DeliveryDedup, LocalePrefStore, NotificationRouter
 
 from bot.features.notifications.deliver import OrderDeliverer
 
 
 def build_router(cache: Cache, client: aioredis.Redis) -> NotificationRouter:
     router = NotificationRouter()
-    deliverer = OrderDeliverer(cache, DeliveryDedup(client))
+    deliverer = OrderDeliverer(cache, DeliveryDedup(client), LocalePrefStore(cache))
     # stream=orders, subject=orders.paid, durable=bot-orders-paid (JetStream explicit-ack)
     router.on("orders", "orders.paid", "bot-orders-paid", deliverer.on_order_paid)
     return router

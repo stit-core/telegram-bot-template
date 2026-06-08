@@ -11,15 +11,16 @@ from __future__ import annotations
 from typing import Any
 
 from pylibinfra.cachekit import Cache
-from pylibinfra.tgbotkit import Delivery, DeliveryDedup
+from pylibinfra.tgbotkit import Delivery, DeliveryDedup, LocalePrefStore
 
 from bot.platform.links import chat_link_key
 
 
 class OrderDeliverer:
-    def __init__(self, cache: Cache, dedup: DeliveryDedup) -> None:
+    def __init__(self, cache: Cache, dedup: DeliveryDedup, locales: LocalePrefStore) -> None:
         self._cache = cache
         self._dedup = dedup
+        self._locales = locales
 
     async def on_order_paid(self, payload: Any, delivery: Delivery) -> None:
         order_id = str(payload.get("order_id", "")) if isinstance(payload, dict) else ""
@@ -33,9 +34,10 @@ class OrderDeliverer:
         if not await self._dedup.reserve(key):
             return  # уже доставлено или доставка в процессе у другого консьюмера
         try:
-            await delivery.send_message(
-                chat_id=chat_id, text=f"✅ Оплата заказа {order_id} получена. Спасибо!"
-            )
+            # фон вне I18nMiddleware → локаль резолвим сами: chat_id == user_id для DM
+            locale = await self._locales.get(chat_id)
+            text = delivery.localize(locale, "notifications-order-paid", {"order_id": order_id})
+            await delivery.send_message(chat_id=chat_id, text=text)
         except Exception:
             await self._dedup.release(key)  # сбой доставки → JsBus nak → redelivery повторит
             raise

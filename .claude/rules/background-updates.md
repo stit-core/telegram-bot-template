@@ -1,6 +1,6 @@
 ---
 name: background-updates
-description: Фоновая доставка (notifications/jobs) идёт мимо обычной middleware-цепочки — request_id/локаль/грабли BgManager закрыты в tgbotkit.Delivery, шаблон пишет только бизнес. Terse; «как и почему» — design/ARCHITECTURE.md §11. Грузится при правке notification*/deliver*-файлов.
+description: Фоновая доставка (notifications/jobs) идёт мимо обычной middleware-цепочки — request_id/грабли BgManager закрыты в tgbotkit.Delivery; локаль deliver_* резолвит сам и рендерит через Delivery.localize. Шаблон пишет только бизнес. Terse; «как и почему» — design/ARCHITECTURE.md §11. Грузится при правке notification*/deliver*-файлов.
 paths:
   - "**/notification*.py"
   - "**/deliver*.py"
@@ -16,15 +16,17 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
 ## Инварианты
 
 - **Отправляй через `Delivery`** (аргумент `deliver_*`), не через сырой `BgManager`/`bot.*`.
-  `Delivery` закрывает: фон вне middleware → `request_id`/локаль руками, пустой стек → safe,
-  EDIT не гарантирован, throttle. Сырой `BgManager` мимо `Delivery` — нет.
+  `Delivery` закрывает `request_id` (фон вне middleware), пустой стек → safe, EDIT не гарантирован,
+  throttle. **Локаль фон НЕ резолвит автоматически** (нет I18nMiddleware): `deliver_*` берёт её сам
+  (`LocalePrefStore.get(user_id)`) и рендерит ключ через `Delivery.localize(locale, key, args)`.
+  Сырой `BgManager` мимо `Delivery` — нет.
 - **Идемпотентность обязательна** (JetStream durable = at-least-once): `reserve(<event-key>)` ДО
   отправки → `commit` после успеха → `release` на сбое. Ключ стабильный по событию
   (`order-paid:<order_id>`), не по времени. Сбой доставки **пробрасывай** (не глотать) — `JsBus`
   сделает `nak`, а снятая `release`-резервация даст redelivery повторить. «Вряд ли задвоится» — не
   аргумент. (Тот же `reserve/commit/release` у `ChargeGuard` для successful_payment.)
-- **`deliver_*` — быстрый**: дедуп → резолв `chat_id` → отправка. Тяжёлое (батч, рендер) — в
-  usecase/job, не в обработчике доставки.
+- **`deliver_*` — быстрый**: дедуп → резолв `chat_id` → резолв локали → `localize` → отправка.
+  Тяжёлое (батч, рендер) — в usecase/job, не в обработчике доставки.
 - **`chat_id` резолвится по link tg→chat** (его пишет онбординг, напр. `start.mark_onboarded`);
   нет link (пользователь не онбордился) — **тихо пропустить**, не падать, не слать в `tg_id`.
 - Какие `stream`/`subject`/`durable` и `deliver_*` — здесь (`build_router` →

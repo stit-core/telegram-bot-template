@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pylibinfra.tgbotkit import DeliveryDedup
+from pylibinfra.tgbotkit import DeliveryDedup, LocalePrefStore
 from tests._fakes.cache import FakeCache
 from tests._fakes.delivery import DeliveryInjectedError, FakeDelivery
 from tests._fakes.redis import FakeRedis
@@ -15,16 +15,16 @@ pytestmark = pytest.mark.unit
 
 
 def _deliverer(cache: FakeCache) -> OrderDeliverer:
-    return OrderDeliverer(cache, DeliveryDedup(FakeRedis()))  # type: ignore[arg-type]
+    return OrderDeliverer(cache, DeliveryDedup(FakeRedis()), LocalePrefStore(cache))  # type: ignore[arg-type]
 
 
-async def test_delivers_when_linked() -> None:
+async def test_delivers_localized_when_linked() -> None:
     cache = FakeCache()
     cache.store[chat_link_key("1")] = b"555"
     delivery = FakeDelivery()
     await _deliverer(cache).on_order_paid({"order_id": "o1", "user_ref": "1"}, delivery)  # type: ignore[arg-type]
-    assert len(delivery.messages) == 1
-    assert delivery.messages[0][0] == 555
+    # текст идёт через delivery.localize (i18n off в тестах → ключ), не хардкод
+    assert delivery.messages == [(555, "notifications-order-paid")]
 
 
 async def test_dedup_skips_second_delivery() -> None:

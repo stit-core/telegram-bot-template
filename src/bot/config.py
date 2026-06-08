@@ -26,7 +26,14 @@ from pylibinfra.tgbotkit import I18nConfig
 # Каталог переводов внутри пакета (bot/locales/<locale>/<resource>.ftl). Дефолт-локаль
 # шаблона — ru (kit-дефолт — en). Имена ресурсов = префиксы фич (один .ftl на фичу).
 _LOCALES_DIR = Path(__file__).parent / "locales"
-_I18N_RESOURCES = ["common.ftl", "start.ftl", "profile.ftl", "payments.ftl", "lang.ftl"]
+_I18N_RESOURCES = [
+    "common.ftl",
+    "start.ftl",
+    "profile.ftl",
+    "payments.ftl",
+    "lang.ftl",
+    "notifications.ftl",
+]
 _DEFAULT_LOCALE = "ru"
 _DEFAULT_SERVICE_NAME = "telegram-bot"
 

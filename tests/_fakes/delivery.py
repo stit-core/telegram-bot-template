@@ -19,6 +19,9 @@ class FakeDelivery:
         self.dialogs: list[tuple[int, int]] = []
         self.fail_next = 0
 
+    def localize(self, locale: str | None, key: str, args: dict[str, Any] | None = None) -> str:
+        return key  # i18n не установлен в тестах → ключ (как боевой Delivery без translator)
+
     async def send_message(self, *, chat_id: int, text: str, **kwargs: Any) -> None:
         if self.fail_next > 0:
             self.fail_next -= 1

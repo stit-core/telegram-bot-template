@@ -25,7 +25,7 @@ from pylibinfra.natskit import (
 )
 from pylibinfra.natskit.config import Config, JetStreamConfig
 from pylibinfra.testkit import start_redis
-from pylibinfra.tgbotkit import DeliveryDedup
+from pylibinfra.tgbotkit import DeliveryDedup, LocalePrefStore
 from testcontainers.nats import NatsContainer  # testkit.start_nats не включает JetStream
 from tests._fakes.delivery import FakeDelivery
 
@@ -34,7 +34,9 @@ from bot.platform.links import chat_link_key
 
 pytestmark = pytest.mark.integration
 
-_PAID_TEXT = "✅ Оплата заказа o1 получена. Спасибо!"
+# FakeDelivery.localize без translator отдаёт ключ (i18n off) — golden проверяет доставку/дедуп,
+# не рендер текста (рендер локали покрыт kit-тестами Delivery.localize)
+_PAID_KEY = "notifications-order-paid"
 
 
 async def test_transient_delivery_failure_redelivers_then_commits_once() -> None:
@@ -44,7 +46,7 @@ async def test_transient_delivery_failure_redelivers_then_commits_once() -> None
             cache = RedisCache(client)
             await cache.set(chat_link_key("u1"), b"555")
             dedup = DeliveryDedup(client)
-            deliverer = OrderDeliverer(cache, dedup)
+            deliverer = OrderDeliverer(cache, dedup, LocalePrefStore(cache))
             delivery = FakeDelivery()
             delivery.fail_next = 1  # первая доставка падает (транзиентный сбой)
             attempts = 0
@@ -90,7 +92,7 @@ async def test_transient_delivery_failure_redelivers_then_commits_once() -> None
             # nak вернул сообщение в консьюмер — путь redelivery реально пройден, не первый успех
             assert attempts >= 2
             # ровно одна доставка нужному чату — потери/задвоения нет
-            assert delivery.messages == [(555, _PAID_TEXT)]
+            assert delivery.messages == [(555, _PAID_KEY)]
             # commit поднял дедуп-ключ → повторный reserve того же события дедупится
             assert await dedup.reserve("order-paid:o1") is False
         finally:
