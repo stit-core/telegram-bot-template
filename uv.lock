@@ -1922,7 +1922,7 @@ wheels = [
 [[package]]
 name = "pylibinfra"
 version = "0.1.0"
-source = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=2f3260a#2f3260abdaa714cddb8af32cce6752b9c839264b" }
+source = { git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=5f2d124#5f2d124b1c9c7a229856ccb8f587bd043a7fd3d3" }
 dependencies = [
     { name = "aioboto3" },
     { name = "argon2-cffi" },
@@ -2280,13 +2280,13 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pylibinfra", extras = ["tgbotkit"], git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=2f3260a" }]
+requires-dist = [{ name = "pylibinfra", extras = ["tgbotkit"], git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=5f2d124" }]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "import-linter", specifier = ">=2.5" },
     { name = "mypy", specifier = ">=2.1,<3" },
-    { name = "pylibinfra", extras = ["testkit"], git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=2f3260a" },
+    { name = "pylibinfra", extras = ["testkit"], git = "https://git.sftbmb.ru/sftbmb-core/pylibinfra.git?rev=5f2d124" },
     { name = "pytest", specifier = ">=9,<10" },
     { name = "pytest-asyncio", specifier = ">=1.4,<2" },
     { name = "pytest-cov", specifier = ">=7.1,<8" },
