@@ -1,6 +1,6 @@
 ---
 name: forward-only
-description: Forward-only документация — текст описывает только текущее состояние, без changelog-нарратива. Грузится при правке любого doc/skill/rule/plan/design/CLAUDE.md.
+description: Forward-only документация — текст описывает только текущее состояние, без changelog-нарратива. Грузится при правке любого doc/skill/rule/plan/CLAUDE.md.
 paths:
   - "**/*.md"
 ---
@@ -48,5 +48,5 @@ paths:
 
 - Anti-pattern / предупреждение в настоящем («не делай `:latest` "временно" — никогда не временно») — оставляем.
 - «Осознанно не делаем X (trade-off + триггер пересмотра)» — present-state policy, оставляем.
-- Кросс-ссылка на `design/`-канон за инвариантом — оставляем.
+- Кросс-ссылка на `docs/reference/`-канон за инвариантом — оставляем.
 - Conventional Commits и `git log` — механизм истории, не трогаем.

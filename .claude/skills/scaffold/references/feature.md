@@ -1,6 +1,6 @@
 # scaffold › feature — новый вертикальный срез
 
-Создаёт новую фичу (bounded context одного пользовательского сценария) по конвенции шаблона. Эталоны полного гексагона — `features/profile/`, `booking/`, `payments/`; полные скелеты файлов — `design/FEATURE-BLUEPRINT.md`. Соответствует rule `feature-architecture` (открой, если не загружено).
+Создаёт новую фичу (bounded context одного пользовательского сценария) по конвенции шаблона. Эталоны полного гексагона — `features/profile/`, `booking/`, `payments/`; полная раскладка слоёв — `docs/reference/architecture.md § Слои фичи`. Соответствует rule `feature-architecture` (открой, если не загружено).
 
 **Gate (soft).** Флоу диалога проектируется **до** кода (`/dialog-deep-dive`): окна, переходы, getter-данные, состояния виджетов. Если флоу ещё не зафиксирован — сначала dialog-deep-dive, потом сюда. Жёсткого хука нет — дисциплина.
 

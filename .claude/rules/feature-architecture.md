@@ -1,6 +1,6 @@
 ---
 name: feature-architecture
-description: Слои и границы фичи (вертикальный срез гексагона) + связь с pkg-клиентами. Terse-инварианты; «как и почему» — design/ARCHITECTURE.md §8. Грузится при работе с src/bot/features/ и src/bot/pkg/.
+description: Слои и границы фичи (вертикальный срез гексагона) + связь с pkg-клиентами. Terse-инварианты; «как и почему» — docs/reference/architecture.md § Слои фичи. Грузится при работе с src/bot/features/ и src/bot/pkg/.
 paths:
   - "src/bot/features/**"
   - "src/bot/pkg/**"

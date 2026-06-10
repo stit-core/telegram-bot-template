@@ -1,6 +1,6 @@
 ---
 name: dialog-architecture
-description: Инварианты presentation-слоя aiogram_dialog (Dialog/Window, getter, handler, DI). Terse; «как и почему» — design/ARCHITECTURE.md §7 + aiogram-dialog-docs/. Грузится при правке dialogs.py/getters.py/handlers.py.
+description: Инварианты presentation-слоя aiogram_dialog (Dialog/Window, getter, handler, DI). Terse; «как и почему» — docs/reference/dialog-mapping.md + aiogram-dialog-docs/. Грузится при правке dialogs.py/getters.py/handlers.py.
 paths:
   - "**/dialogs.py"
   - "**/getters.py"

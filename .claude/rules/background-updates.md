@@ -1,6 +1,6 @@
 ---
 name: background-updates
-description: Фоновая доставка (notifications/jobs) идёт мимо обычной middleware-цепочки — request_id/грабли BgManager закрыты в tgbotkit.Delivery; локаль deliver_* резолвит сам и рендерит через Delivery.localize. Шаблон пишет только бизнес. Terse; «как и почему» — design/ARCHITECTURE.md §11. Грузится при правке notification*/deliver*-файлов.
+description: Фоновая доставка (notifications/jobs) идёт мимо обычной middleware-цепочки — request_id/грабли BgManager закрыты в tgbotkit.Delivery; локаль deliver_* резолвит сам и рендерит через Delivery.localize. Шаблон пишет только бизнес. Terse; «как и почему» — docs/reference/architecture.md § Фоновые апдейты. Грузится при правке notification*/deliver*-файлов.
 paths:
   - "**/notification*.py"
   - "**/deliver*.py"

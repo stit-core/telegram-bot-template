@@ -1,6 +1,6 @@
 ---
 name: storage-serialization
-description: Всё, что уезжает в FSM/dialog storage (Redis), обязано быть JSON-сериализуемым. Terse; «как и почему» — design/ARCHITECTURE.md §10. Грузится при правке state.py и *state*-файлов.
+description: Всё, что уезжает в FSM/dialog storage (Redis), обязано быть JSON-сериализуемым. Terse; «как и почему» — docs/reference/architecture.md. Грузится при правке state.py и *state*-файлов.
 paths:
   - "**/state.py"
   - "**/*state*.py"

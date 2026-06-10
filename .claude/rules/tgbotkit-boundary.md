@@ -1,6 +1,6 @@
 ---
 name: tgbotkit-boundary
-description: Инфра не пишется в шаблоне — только бизнес и регистрация в точки расширения tgbotkit; новая инфра-механика → PR в pylibinfra/tgbotkit через infra-handoff. Terse; «как и почему» — design/ARCHITECTURE.md §1/§4/§16. Грузится при правке app.py/platform/.
+description: Инфра не пишется в шаблоне — только бизнес и регистрация в точки расширения tgbotkit; новая инфра-механика → PR в pylibinfra/tgbotkit через infra-handoff. Terse; «как и почему» — docs/reference/architecture.md § Граница с pylibinfra. Грузится при правке app.py/platform/.
 paths:
   - "src/bot/app.py"
   - "src/bot/platform/**"
@@ -41,7 +41,7 @@ paths:
 
 Нужен новый middleware / новый вид рантайма / новая generic-подсистема / новая точка расширения —
 это **не правка шаблона, а PR в `pylibinfra/tgbotkit`**, оформляется через skill `infra-handoff`
-(см. `design/ARCHITECTURE.md §16`: PR-A `tgbotkit`, PR-B `httpkit`; оба аддитивные/back-compat).
+(контракт границы — `docs/reference/architecture.md § Граница с pylibinfra`; механика kit'а аддитивна/back-compat).
 Шаблон может временно нести инфру локально только как переходный шаг — с обязательным выносом PR'ом.
 
 ## Чек

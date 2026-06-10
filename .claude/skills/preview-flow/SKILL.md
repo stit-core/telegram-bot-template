@@ -77,7 +77,7 @@ asyncio.run(render_preview(bot, "preview.html"))
 ## 4. Артефакт ревью
 
 - `flow.png` — приложи к PR/обсуждению, отметь словами найденные аномалии (недостижимость/тупик/лишнее ребро).
-- сверь граф с картой флоу из `dialog-deep-dive` (`docs/stack/dialogs.md § Flow: <feature>`) — расхождение «как задумано vs как в коде» обсуди/почини.
+- сверь граф с картой флоу из `dialog-deep-dive` (`docs/stack/dialogs.md § Flow: <feature>`) — расхождение «как задумано vs как в коде» обсуди/почини. Первоисточник «как задумано», если есть стратегия-репо, — её слой `telegram-bot-flow/<surface>/` (dialog `windows`/`transitions`, окна `state`/виджеты): цепочка правды `стратегия → карта флоу → граф`.
 - `flow.png`/`preview.html`/`scripts/preview.py` — **не коммить** (артефакты ревью; `.gitignore`/`.dockerignore` их и так исключают по расширению, проверь).
 
 ## 5. Назад в поток

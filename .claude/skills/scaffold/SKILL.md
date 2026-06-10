@@ -24,7 +24,7 @@ description: Добавить строительный блок в сущест�
 ## Когда НЕ применять
 
 - **Правка существующего** блока (переписать getter, поменять текст окна) — точечная правка без scaffold.
-- **Проектирование нового флоу с нуля** (окна/переходы ещё не зафиксированы) — сначала `/dialog-deep-dive`, scaffold — по его артефакту.
+- **Проектирование нового флоу с нуля** (окна/переходы ещё не зафиксированы) — сначала `/dialog-deep-dive`, scaffold — по его артефакту (в т.ч. когда дизайн приходит из стратегии-репо `<org>/strategy`, слой `telegram-bot-flow/<surface>/` — deep-dive транслирует его в карту флоу).
 - **Эволюция `StatesGroup`** (удаление/переименование живого State) — это `state-migration`, не scaffold.
 - **Новая инфра-механика** (свой runner, новая точка расширения kit'а) — это **PR в `tgbotkit`** через `infra-handoff`, а не код в шаблоне (rule `tgbotkit-boundary`). `middleware` и часть `notification`/`job` затрагивают эту границу — reference об этом предупреждает.
 - **Онбординг форка** — это `init-service` → `de-template`.
@@ -72,4 +72,4 @@ Reference даёт variant-специфичные шаги; этот ритм о
 
 - `references/{feature,dialog,window,backend-port,middleware,job,notification}.md` — процедуры вариантов.
 - Правила (автогрузятся на matching-файлах): `feature-architecture`, `dialog-architecture`, `storage-serialization`, `state-lifecycle`, `background-updates`, `tests-pipeline`, `tgbotkit-boundary`.
-- `design/FEATURE-BLUEPRINT.md` — полные скелеты файлов гексагона.
+- `docs/reference/architecture.md § Слои фичи` + эталоны `features/profile/`/`booking/` — полная раскладка гексагона; `docs/reference/dialog-mapping.md` — флоу → файлы.

@@ -1,6 +1,6 @@
 ---
 name: dialog-deep-dive
-description: Спроектировать флоу диалога как source-of-truth ДО кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup. Ведёт сессию через раунды AskUserQuestion (без монологов и догадок), фиксирует флоу в docs (карта диалога) + рабочую память state/. Аналог domain-deep-dive, но для UI-сценария бота. Активируй когда проектируешь новый пользовательский сценарий/флоу, говоришь "/dialog-deep-dive", "спроектируем диалог", "продумаем флоу/экраны", "как должен идти этот сценарий", или когда init-service/plan дошёл до нового флоу. Точечная правка уже спроектированного окна — прямой Edit/scaffold, не сюда.
+description: Спроектировать флоу диалога как source-of-truth ДО кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup. Ведёт сессию через раунды AskUserQuestion (без монологов и догадок), фиксирует флоу в docs (карта диалога) + рабочую память state/. Аналог domain-deep-dive, но для UI-сценария бота. Если рядом sibling-checkout'ом лежит стратегия-репо (`<org>/strategy`, форк business-strategy-template) со слоем telegram-bot-flow/<surface>/ — работает ТРАНСЛЯТОРОМ его stable-артефактов (dialog/window/command/notification) в карту флоу и код-понятия, а не интервьюером. Активируй когда проектируешь новый пользовательский сценарий/флоу, говоришь "/dialog-deep-dive", "спроектируем диалог", "продумаем флоу/экраны", "как должен идти этот сценарий", "разверни дизайн из стратегии", или когда init-service/plan дошёл до нового флоу. Точечная правка уже спроектированного окна — прямой Edit/scaffold, не сюда.
 ---
 
 # Skill: dialog-deep-dive
@@ -32,6 +32,33 @@ description: Спроектировать флоу диалога как source-
 - ✅ Сомневаешься, нужен ли отдельный экран подтверждения → лишний раунд, а не догадка.
 
 Enum'ы как опции (тип виджета, тип перехода, launch-mode); тексты, имена State, конкретные данные — свободной формой (Other).
+
+## Вход из стратегии (`<org>/strategy`)
+
+Если рядом sibling-checkout'ом лежит стратегия-репо (форк `business-strategy-template`, жёсткий
+upstream экосистемы) и в нём для bot-поверхности есть слой
+`docs/projects/<project-slug>/telegram-bot-flow/<surface>/` — **дизайн уже спроектирован
+аналитиком** (скиллы `telegram-bot-flow-deep-dive`/`-audit`). Тогда скилл — **транслятор**, не
+интервьюер: читает 4 kind и разворачивает их в карту флоу и код-понятия.
+
+| Артефакт стратегии (поля) | → код-понятие бота |
+|---|---|
+| `dialogs/<slug>/index.md` (`states-group`, `windows`, `launch-mode`, `started-by`, `dialog-data`) | `StatesGroup` (имя = `states-group`); порядок `State` = порядок `windows`; `LaunchMode` (`root`→`ROOT`); точки входа; контракт `dialog_data` |
+| `windows/<slug>/index.md` (`state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state` = имя `State`); текст → `I18NFormat`/`Format` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + **fallback**); `errors` → `ErrorUX`/getter-дефолты |
+| `command.md` (`command`, `starts`, `stack`, `payload`) | dispatcher-level `CommandSpec` (`CommandBundle`); `stack: reset` → `RESET_STACK`; deep-link `payload` → `start_data` |
+| `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`/`BgManager`); `trigger: event:…` → subject; идемпотентность |
+
+Действия и данные ссылаются на домен: `widget.action` / `getter.source` = `use-case:<ctx>.<Operation>`
+→ usecase/порт фичи (имена операций — из `domains/<ctx>/use-cases/` той же стратегии);
+`notification.trigger` = `event:<ctx>.<Event>` → subject подписчика. Зеркало UX — `interface/<surface>/`
+той же стратегии. Полный маппинг полей в файлы фичи — `docs/reference/dialog-mapping.md`.
+
+**Контракт чтения.** Брать только `status: stable`-артефакты; стратегия-репо **read-only** (в неё
+не пишем — дыры в дизайне эскалируются аналитику запуском `/telegram-bot-flow-deep-dive`, до ответа
+фиксируются в `state/` как `**blocker**`). Карта флоу всё равно пишется в `docs/stack/dialogs.md`
+(с пометкой источника — `<project-slug>`/`<surface>` стратегии): она остаётся входом
+`scaffold`/`preview-flow`. Раунды `AskUserQuestion` — **только по дырам** (чего в артефактах нет:
+тексты ошибок вне канон-ключей, платформенные детали), не по уже принятым решениям аналитика.
 
 ## Что проектируем (оси флоу)
 

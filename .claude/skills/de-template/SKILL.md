@@ -70,7 +70,7 @@ description: Развернуть форк telegram-bot-template в самост
 - Удали `docs/getting-started.md` ([META] «как форкнуть шаблон»).
 - `docs/contributing.md` ([META] про `.claude`-систему) — **оставь** (система наследуется форком); переформулируй «шаблон» → имя проекта при желании.
 - Сбрось `.claude/plans/roadmap.md` к пустому fork-start (шапка + пустые `## Active`/`## Backlog`).
-- `design/` (исследовательские артефакты шаблона) — **оставь** как референс архитектуры или удали по решению юзера; это не код.
+- `docs/reference/*` (architecture/dialog-mapping/observability/release/ecosystem) — **оставь** (наследуется форком; reference переезжает в проект); `getting-started.md` удаляется, см. выше.
 
 ### A.5 Prune reference-фич
 
