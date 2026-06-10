@@ -1,6 +1,6 @@
 """Flow-тест profile: /start → меню → просмотр профиля → правка имени → перерисованный профиль.
 
-Мокаем порт бэкенда (FakeBackendClient), не транспорт. Локаторы кнопок — по тексту (i18n не
+Мокаем границу бэкенда (FakeApiClient), не транспорт. Локаторы кнопок — по тексту (i18n не
 установлен → I18NFormat рендерит ключ).
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from aiogram_dialog.test_tools.keyboard import InlineButtonTextLocator
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
-from tests._fakes.backend import FakeBackendClient
+from tests._fakes.backend import FakeApiClient
 from tests._fakes.harness import build_dp, make_container
 
 from bot.features import profile, start
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.dialog
 
 async def test_profile_view_then_rename() -> None:
     mm = MockMessageManager()
-    backend = FakeBackendClient({"name": "Алиса", "email": "a@example.com", "premium": True})
+    backend = FakeApiClient({"name": "Алиса", "email": "a@example.com", "premium": True})
     container = make_container(start.Provider(), profile.Provider(), backend=backend)
     dp = build_dp(
         container,

@@ -9,17 +9,16 @@ from __future__ import annotations
 
 import pytest
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
+from pylibinfra.httpclient import UnavailableError
 from pylibinfra.logkit import nop
-from pylibinfra.tgbotkit import Money
 
-from bot.features.payments import errors as pay_errors
-from bot.features.payments.dto import Order
 from bot.features.payments.getters import offer_getter
 from bot.features.payments.usecase import PaymentsUsecase
 from bot.features.profile import errors as prof_errors
-from bot.features.profile.dto import ProfileView
 from bot.features.profile.getters import profile_getter
 from bot.features.profile.usecase import ProfileUsecase
+from bot.pkg.http_client.internal.payments import Offer
+from bot.pkg.http_client.internal.profile import User
 from bot.platform.identity import BotIdentity
 
 pytestmark = pytest.mark.unit
@@ -28,34 +27,31 @@ _IDENTITY = BotIdentity(tg_id=1, backend_user_id="1", role="user")
 
 
 class _PayGateway:
-    def __init__(self, order: Order | None = None, error: Exception | None = None) -> None:
-        self._order = order
+    def __init__(self, offer: Offer | None = None, error: Exception | None = None) -> None:
+        self._offer = offer
         self._error = error
 
-    async def get_offer(self, offer_id: str) -> Order:
+    async def get_offer(self, offer_id: str) -> Offer:
         if self._error is not None:
             raise self._error
-        assert self._order is not None
-        return self._order
-
-    async def fulfill(self, order_id: str, charge_id: str) -> None:
-        pass
+        assert self._offer is not None
+        return self._offer
 
 
 class _ProfGateway:
-    def __init__(self, view: ProfileView | None = None, error: Exception | None = None) -> None:
-        self._view = view
+    def __init__(self, user: User | None = None, error: Exception | None = None) -> None:
+        self._user = user
         self._error = error
 
-    async def load_profile(self, backend_user_id: str) -> ProfileView:
+    async def get_user(self, user_id: str) -> User:
         if self._error is not None:
             raise self._error
-        assert self._view is not None
-        return self._view
+        assert self._user is not None
+        return self._user
 
-    async def update_name(self, backend_user_id: str, name: str) -> ProfileView:
-        assert self._view is not None
-        return self._view
+    async def rename_user(self, user_id: str, name: str) -> User:
+        assert self._user is not None
+        return self._user
 
 
 class _Onboarding:
@@ -100,8 +96,8 @@ def _prof_container(gateway: _ProfGateway) -> AsyncContainer:
 
 
 async def test_offer_getter_returns_offer_data() -> None:
-    order = Order(order_id="o1", title="Премиум", description="30д", price=Money(100))
-    container = _pay_container(_PayGateway(order=order))
+    offer = Offer(id="o1", title="Премиум", description="30д", amount=100)
+    container = _pay_container(_PayGateway(offer=offer))
     async with container() as rc:
         data = await offer_getter(dishka_container=rc)  # type: ignore[call-arg]
     assert data["title"] == "Премиум"
@@ -111,7 +107,7 @@ async def test_offer_getter_returns_offer_data() -> None:
 
 async def test_offer_getter_soft_placeholder_on_error() -> None:
     # бэкенд оффера недоступен — окно показывает заглушку, не падает в recovery
-    container = _pay_container(_PayGateway(error=pay_errors.PaymentError("down")))
+    container = _pay_container(_PayGateway(error=UnavailableError("down")))
     async with container() as rc:
         data = await offer_getter(dishka_container=rc)  # type: ignore[call-arg]
     assert data["amount"] == 0
@@ -120,8 +116,8 @@ async def test_offer_getter_soft_placeholder_on_error() -> None:
 
 
 async def test_profile_getter_returns_window_data() -> None:
-    view = ProfileView(name="Алиса", email="a@x.io", is_premium=True)
-    container = _prof_container(_ProfGateway(view=view))
+    user = User(name="Алиса", email="a@x.io", premium=True)
+    container = _prof_container(_ProfGateway(user=user))
     async with container() as rc:
         data = await profile_getter(dishka_container=rc)  # type: ignore[call-arg]
     assert data["name"] == "Алиса"

@@ -28,7 +28,7 @@
 - **Роль/доступ** — `policy` фичи + `BotIdentity.role` (admin-allowlist из `APP_ADMIN_IDS`, см. `config.py`/`platform/identity`). usecase сам отказывает (`raise errors.Forbidden(...)`), getter показывает мягко.
 - **Фильтр на команду** — aiogram-фильтр в `CommandSpec(observer, handler, filters)`: `CommandSpec("message", handler, (F.text, RoleFilter("admin")))`. Фильтр — чистая функция-предикат, бизнес-условие; живёт рядом с фичей.
 - **Per-feature предусловие** — проверка в начале usecase/handler (например, «онбординг пройден?» через cross-feature порт `OnboardingReader`).
-- **Локаль/i18n** — уже решено `OptionalLocaleResolver` (`ExtensionProvider.resolver`); не пиши свой i18n-middleware.
+- **Локаль/i18n** — уже решено `OptionalLocaleResolver` (`ExtensionProvider.resolver` в `app.py`); не пиши свой i18n-middleware.
 
 Если это действительно фильтр (предикат на апдейт) — заведи его как aiogram-фильтр и отдай в `filters` нужного `CommandSpec`, не как middleware:
 
@@ -56,14 +56,14 @@ aiogram позволяет навесить middleware на отдельный `
 
 - фильтр/предикат — unit-тест (pure): admin/не-admin → True/False.
 - если завёл локальный middleware — flow-тест, что обогащение дошло до getter/handler.
-- `make check`; тронул `extensions.py`/регистрацию — `pytest -k collision`.
+- `make check`; тронул `app.py`/регистрацию — `pytest -k collision`.
 
 `feat(admin): add IsAdmin filter` (для §B). Для §A — коммита в шаблоне нет, есть `**Infra impact.**` + PR в pylibinfra.
 
 ## Anti-patterns
 
 - ❌ Написать throttle/dedup/auth-gate middleware в `src/bot/` — это инфра, → PR в `tgbotkit`.
-- ❌ Свой i18n/locale-middleware — уже есть `LocaleResolver` (`ExtensionProvider`).
+- ❌ Свой i18n/locale-middleware — уже есть `LocaleResolver` (`ExtensionProvider` в `app.py`).
 - ❌ Generic-middleware только на `message`, забыв `DIALOG_EVENT_NAME` — фоновые/диалоговые события его минуют.
 - ❌ Решать роль/доступ через middleware, когда хватает `policy` + `BotIdentity.role` или фильтра на `CommandSpec`.
 - ❌ Дублировать kit-механику (request-id/span) локальным middleware.

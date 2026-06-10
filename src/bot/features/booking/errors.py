@@ -11,3 +11,11 @@ class BookingError(FeatureError):
 
 class BookingUnavailable(BookingError):
     """Бэкенд заказов недоступен."""
+
+
+class GuestsRejected(BookingError):
+    """Число гостей не прошло бизнес-валидацию (шаг DETAILS)."""
+
+
+class AddressRejected(BookingError):
+    """Адрес не прошёл бизнес-валидацию (шаг ADDRESS)."""

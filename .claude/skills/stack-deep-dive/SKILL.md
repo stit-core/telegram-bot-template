@@ -9,7 +9,7 @@ description: Углублённая интерактивная проработ�
 
 Где диалоги/флоу (скилл `/dialog-deep-dive`) отвечают «какой пользовательский сценарий», этот скилл — «на какой платформе бот крутится»: polling vs webhook, Redis-проводка, какие бэкенды, NATS-subjects push-уведомлений, identity-link, как версионируется и деплоится **один** образ.
 
-Это **source of truth и вход для `de-template`**. Секция `Generates` каждого артефакта описывает, что из него родится в коде (`config.py`-env, `extensions.py`-точки расширения, `platform/*`-провайдеры, нужные kit'ы `pylibinfra`). Канон артефактов и обязательных H2 — `docs/stack/README.md`. Скилл их не дублирует, а исполняет.
+Это **source of truth и вход для `de-template`**. Секция `Generates` каждого артефакта описывает, что из него родится в коде (`config.py`-env, точки расширения `ExtensionProvider` в `app.py`, `pkg/http_client/*`-клиенты, `platform/*`-провайдеры, нужные kit'ы `pylibinfra`). Канон артефактов и обязательных H2 — `docs/stack/README.md`. Скилл их не дублирует, а исполняет.
 
 В онбординг-флоу `init-service` чейнит сюда после проектирования флоу диалогов, затем — `de-template`.
 
@@ -21,11 +21,11 @@ description: Углублённая интерактивная проработ�
 | `runtime` | **polling vs webhook**, инстансы (webhook ≥2 + `RedisEventIsolation`), graceful shutdown, какие фоновые подсистемы поднимаются (notifications-runner, jobs) |
 | `storage` ⚠️ | Redis (**НЕ Memory**): key-builder `with_destiny`, TTL, `RedisEventIsolation`, что кладётся в FSM/dialog_data (только JSON), dedup, identity-link |
 | `dialogs` ⚠️ | карта диалогов/флоу, корневой `LaunchMode.ROOT`, `/start`=`RESET_STACK`, error-handlers (`ErrorUX`), StatesGroup-инвентарь |
-| `backends` | список бэкендов, base_url, таймауты, breaker, auth, идемпотентность мутаций |
+| `backends` | именованные бэкенды (`BackendsConfig`), base_url, таймауты, breaker, auth, идемпотентность мутаций |
 | `messaging` | NATS-subjects/streams/durable для push-уведомлений, JetStream vs core |
 | `auth` | identity-link tg↔backend, admin-allowlist (`APP_ADMIN_IDS`), initData-валидация (WebApp) |
 | `observability` | метрики `tg_*`/`biz_tg_*`, трейс апдейта (`tg.update`), health/ready |
-| `config` (роллап) | env/Vault-поверхность (`BOT_*`/`REDIS_URL`/`NATS_URL`/`BACKEND_*`/`OTEL_*`/`APP_*`), secret-карта |
+| `config` (роллап) | env/Vault-поверхность (`BOT_*`/`REDIS_URL`/`NATS_URL`/`HTTPCLIENT_*`/`OTEL_*`/`APP_*`), secret-карта |
 | `dependencies` (роллап) | киты `pylibinfra`, внешние runtime-deps (Redis/NATS/бэкенды) и их деградация |
 | `i18n` (опц.) | локали, движок (`fluent.runtime`/`.ftl`), middleware, дефолт-локаль, фича смены языка |
 
@@ -52,7 +52,7 @@ Anti-pattern'ы и enum'ы — даёшь как опции; имена env, sub
 |---|---|
 | `/stack-deep-dive` | сводка состояния артефактов + AskUserQuestion: что углубить / что заводить |
 | `/stack-deep-dive <kind>` | завести/углубить артефакт (режим A — нет файла, C — есть) |
-| `/stack-deep-dive <свободный текст / приложение>` | сырьё (compose.dev.yml, текущий app.py/extensions.py, заметка про env) → разбор (режим B) |
+| `/stack-deep-dive <свободный текст / приложение>` | сырьё (compose.dev.yml, текущий app.py/config.py, заметка про env) → разбор (режим B) |
 
 ## Что делать сразу при запуске
 
@@ -93,7 +93,7 @@ Anti-pattern'ы и enum'ы — даёшь как опции; имена env, sub
 Чек-лист после каждой правки (все ✅ → предложить промоушн через `AskUserQuestion`, **скилл не повышает сам**):
 
 1. **Обязательные H2 заполнены** непустым осмысленным содержимым, без placeholder'ов.
-2. **Секция `Generates` непуста и конкретна** — контракт для `de-template`: перечисляет конкретные пути в коде (`config.py`/`extensions.py`/`platform/*`) и/или env-имена. Пустая/`TBD` `Generates` = артефакт бесполезен движку.
+2. **Секция `Generates` непуста и конкретна** — контракт для `de-template`: перечисляет конкретные пути в коде (`config.py`/`app.py`/`pkg/http_client/*`/`platform/*`) и/или env-имена. Пустая/`TBD` `Generates` = артефакт бесполезен движку.
 3. **Cross-kind sync согласован.** Решения kit-артефактов (`backends`/`messaging`/`auth`/`observability`/`dependencies`/`storage`) роллапятся в `config` (env+секреты) и `runtime` (подсистемы, shutdown). `auth` добавил `APP_ADMIN_IDS` → он в `config § Required env`.
 4. **Валидатор зелёный** — `make validate-stack-docs`.
 5. **Тест-критерий kind'а подтверждён** в сессии.
@@ -111,7 +111,7 @@ Anti-pattern'ы и enum'ы — даёшь как опции; имена env, sub
 
 После правки kit-артефакта (`backends`/`messaging`/`auth`/`observability`/`dependencies`/`storage`) — скилл добавляет роллап в `config`/`runtime` черновиком и через `AskUserQuestion` показывает дифф «вот что добавилось — окей?»:
 
-- `backends` → `config § Required` (`BACKEND_*_BASE_URL`, таймауты), `dependencies § External` (бэкенды).
+- `backends` → `config § Required` (`HTTPCLIENT_BASE_URL` / `*_BASE_URL` per именованный бэкенд, таймауты), `dependencies § External` (бэкенды).
 - `storage` → `config § Required` (`REDIS_URL`), `runtime § Lifecycle` (`RedisEventIsolation` при webhook ≥2).
 - `messaging` → `config § Required` (`NATS_URL`, subjects/streams), `runtime § Entrypoints` (поднимаем ли notifications-runner), `dependencies § External` (NATS).
 - `auth` → `config § Required/Secrets` (`APP_ADMIN_IDS`, `BOT_TOKEN`).

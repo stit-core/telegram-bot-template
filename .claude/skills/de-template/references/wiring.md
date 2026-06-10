@@ -2,12 +2,12 @@
 
 Артефакты, которые движок разворачивает как **reviewable diff поверх скелета** (в отличие от детерминированной механики Phase A). Каждый kind: прочитай его `Generates` в `docs/stack/<kind>.md`, наложи дифф в названном месте, покажи юзеру на ревью. Порядок — фундамент → роллап (зеркалит волны `stack-deep-dive`); `runtime` последним.
 
-Ключевой принцип бота: **инфра-проводки в шаблоне нет** — она в `tgbotkit`. Wiring сводится к трём тонким файлам: `app.py` (список провайдеров), `extensions.py` (точки расширения), `config.py` (значения `*Config`). Если артефакт требует новой инфра-механики (middleware, runner) — это **не wiring, а PR в `tgbotkit`** (rule `tgbotkit-boundary`, skill `infra-handoff`).
+Ключевой принцип бота: **инфра-проводки в шаблоне нет** — она в `tgbotkit`. Wiring сводится к тонким файлам: `app.py` (единый composition root: `ExtensionProvider` — точки расширения, `build_container` — список провайдеров), `config.py` (значения `*Config`, включая `BackendsConfig`), `pkg/http_client/provider.py` (клиенты API). Если артефакт требует новой инфра-механики (middleware, runner) — это **не wiring, а PR в `tgbotkit`** (rule `tgbotkit-boundary`, skill `infra-handoff`).
 
 ## Порядок и маппинг
 
 ### 1. dependencies → `docs/stack/dependencies.md`
-- kit-провайдеры в `app.py` `make_async_container(...)` — **только нужные** киты `pylibinfra`. Если форк без NATS — убери `NatsProvider()` и `OptionalStreamBus`/`notifiers`. Local-only бот (без HTTP-бэкенда) — убери `HttpClientProvider()`+`BackendProvider()` и весь backend-слой (чеклист — `references/prune.md` › «Local-only бот»); несколько бэкендов — наоборот, по `NewType`-клиенту на API (см. п.3 ниже).
+- kit-провайдеры в `build_container()` (`app.py`) — **только нужные** киты `pylibinfra`. Если форк без NATS — убери `NatsProvider()` и `OptionalStreamBus`/`notifiers`. Local-only бот (без HTTP-бэкенда) — убери `ApiClientsProvider()` + `http_client.Provider()` и весь pkg/портовый HTTP-слой (чеклист — `references/prune.md` › «Local-only бот»); несколько бэкендов — наоборот, записи в `BackendsConfig` (см. п.3).
 - порядок провайдеров критичен: `BotProvider()` даёт дефолты (Logger=nop, bundles, ErrorUX, Optional*), поэтому `LogkitProvider()` и `ExtensionProvider()` — **после** него (last-wins). `AiogramProvider()` обязателен (REQUEST-контекст для identity).
 
 ### 2. storage → `docs/stack/storage.md`
@@ -16,21 +16,22 @@
 - Проверь: `storage` НЕ Memory (Memory теряет диалоги при рестарте/мультиинстансе). Если в форке где-то Memory — баг.
 
 ### 3. backends → `docs/stack/backends.md`
-- `BACKEND_*_BASE_URL`, таймауты, breaker — через httpclient `Config` в `config.py`.
-- несколько бэкендов = **различимые типы** клиентов: dishka ключует по типу, два `BackendClient` коллизят. Заведи `NewType`-маркеры (`CrmClient`/`LlmClient`…) + провайдер на каждый в `platform/backend/provider.py`.
-- доменный маппинг ошибок (`BackendNotFound`/`BackendUnavailable`) — в `platform/backend/errors.py` (общий), уточняется в `gateway.py` каждой фичи.
+- Клиенты областей API — `pkg/http_client/` (`internal/` свои, `external/` сторонние), по классу на область (`ProfileAPI`-стиль) поверх `pylibinfra.httpclient.ApiClient`; провайды — `pkg/http_client/provider.py` поверх реестра `ApiClients.get(<имя>)`.
+- Имена и base_url бэкендов — `BackendsConfig.backends: dict[имя, Config]` в `config.py` (`AppConfigProvider.backends`): один бэкенд — `{CORE_BACKEND: HttpConfig()}` (env `HTTPCLIENT_BASE_URL`/`HTTPCLIENT_TIMEOUT`/…); несколько — запись на каждого со своим `base_url` (свой `*_BASE_URL` env) либо env-JSON `HTTPCLIENT_BACKENDS`. Дефолтное имя breaker'а = имя бэкенда (per-API метрики) — kit ставит сам.
+- Маппинг typed-ошибок (`NotFoundError`/`ConflictError`/`UnavailableError`) в sentinel'ы фичи — в `usecase.py` каждой фичи (единственная точка anti-corruption), не в общем слое.
+- Идемпотентность мутаций — `idempotency_key=` в методах pkg-клиента (ASCII-safe).
 
 ### 4. dialogs → `docs/stack/dialogs.md`
-- `RouterBundle` в `extensions.py` (`routers`) — список `Dialog`'ов своих фич.
+- `RouterBundle` в `ExtensionProvider.routers` (`app.py`) — список `Dialog`'ов своих фич.
 - корневой `LaunchMode.ROOT` — ровно один (карта флоу из артефакта). `/start`=RESET_STACK — в команд-хендлере корневой фичи.
-- `ErrorUX` (`error_ux` в `extensions.py` → `AppErrorUX` в `platform/dialogs/errors.py`): тексты на `UnknownIntent`/`UnknownState`. Регистрация error-handlers — в kit'е.
+- `ErrorUX` (`ExtensionProvider.error_ux` → `AppErrorUX` в `platform/dialogs/errors.py`): тексты на `UnknownIntent`/`UnknownState`. Регистрация error-handlers — в kit'е.
 - StatesGroup-инвентарь → `platform/dialogs/states.py`.
 
 ### 5. messaging → `docs/stack/messaging.md`
-- `NotifierBundle` в `extensions.py` (`notifiers`) — `build_router(...)` своей notifications-фичи: какие stream/subject/durable.
+- `NotifierBundle` в `ExtensionProvider.notifiers` (`app.py`) — `build_router(...)` своей notifications-фичи: какие stream/subject/durable.
 - `NATS_URL` + JetStream-настройки через natskit `Config` в `config.py`.
-- `OptionalStreamBus` отдаётся только при включённом JetStream (иначе None → runner пропускает notifications).
-- если push не нужен — убери notifications-фичу (`references/prune.md`) и `NotifierBundle`/`NatsProvider`.
+- `OptionalStreamBus` (`ExtensionProvider.stream_bus`) отдаётся только при включённом JetStream (иначе None → runner пропускает notifications).
+- если push не нужен — убери notifications-фичу (`references/prune.md`) и `notifiers`/`stream_bus`/`NatsProvider`.
 
 ### 6. auth → `docs/stack/auth.md`
 - identity-link tg↔backend — в `platform/identity/` (`IdentityProvider`, REQUEST-scope).
@@ -39,7 +40,7 @@
 
 ### 7. observability → `docs/stack/observability.md`
 - `OTEL_*` через telemetry `Config` в `config.py`; `service_name` из `service.md` (дефолт + env `OTEL_SERVICE_NAME`).
-- метрики `tg_*` эмитит kit; бизнес-метрики `biz_tg_*` — в usecase через bizmetric (если стек их объявил).
+- метрики `tg_*` эмитит kit; per-API breaker-метрики `http_client_breaker_*` лейблятся именем бэкенда из `BackendsConfig`; бизнес-метрики `biz_tg_*` — в usecase через bizmetric (если стек их объявил).
 - health/ready — httpkit (поднимается kit'ом при webhook/health-режиме).
 
 ### 8. runtime → `docs/stack/runtime.md` (последним)

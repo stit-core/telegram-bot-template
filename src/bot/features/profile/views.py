@@ -9,14 +9,14 @@ from __future__ import annotations
 from typing import Any
 
 from bot.features.profile import errors
-from bot.features.profile.dto import ProfileView
+from bot.pkg.http_client.internal.profile import User
 
 
-def to_window(view: ProfileView) -> dict[str, Any]:
+def to_window(user: User) -> dict[str, Any]:
     return {
-        "name": view.name,
-        "email": view.email,
-        "badge": "⭐ premium" if view.is_premium else "",
+        "name": user.name,
+        "email": user.email,
+        "badge": "⭐ premium" if user.premium else "",
     }
 
 

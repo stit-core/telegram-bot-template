@@ -4,8 +4,8 @@
 `pylibinfra[tgbotkit]`. Вся инфраструктура (Bot/Dispatcher/RedisStorage, middleware-цепочка,
 webhook/polling runner, dishka-setup, error-UX, метрики апдейтов, generic-механика
 i18n/notifications/payments/webapp) живёт в `pylibinfra`; в шаблоне — только фичи (диалоги,
-usecase, gateway, policy, state), контент (`.ftl`-переводы) и тонкая регистрация в точки
-расширения kit'а.
+usecase, ports, policy, state; клиенты API — в `pkg/http_client`), контент (`.ftl`-переводы)
+и тонкая регистрация в точки расширения kit'а.
 
 Зеркалит `go-backend-template`: доменно-гексагональная раскладка фичи, `.claude`-система,
 `make`-гейты, Conventional Commits, forward-only.

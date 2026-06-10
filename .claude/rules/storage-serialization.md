@@ -22,7 +22,8 @@ paths:
   `Decimal`→str, `Enum`→value. Без него `model_dump()` оставит `datetime`-объект → падение.
 - `state.py` фичи — PURE: pydantic-модели данных диалога + локальный re-export `StatesGroup` из
   `platform/dialogs/states`. Никакого I/O, никакого `aiogram_dialog`/`httpx`/`redis`.
-- Храни **черновик/ввод**, не доменную сущность (она живёт за gateway, грузится getter'ом по месту).
+- Храни **черновик/ввод**, не доменную сущность (она живёт за портом фичи — pkg-клиент/`infra/`,
+  грузится getter'ом по месту).
   Модель в `dialog_data` — узкая (что нужно дорисовать окно), не «весь профиль с бэкенда».
 - TTL на storage задаёт kit; контексты **не удаляются**, перезаписываются. Не закладывайся на
   «исчезнет само» — мёртвые ключи живут до TTL.
@@ -43,8 +44,10 @@ paths:
   (submit) — только на финальном окне. Промежуточные шаги — чистый `dialog_data`.
 - **Идемпотентность финала:** генерируй `draft_id` (`uuid4().hex`) в `on_start` диалога, клади в
   `dialog_data`, передавай как `Idempotency-Key` submit — повтор «Подтвердить» не создаст дубль.
-- **Ветвление шага — из `policy`** (`needs_address(...)`), `switch_to` решает handler по черновику;
-  навигация назад — `SwitchTo` на явные `State` (не `Back`), чтобы не упереться в пропущенное окно.
+- **Ветвление шага — результат usecase** (`set_guests → GuestsStep(draft, address_required)`;
+  внутри — `policy.needs_address`), handler только мапит его на `switch_to` (rule
+  `dialog-architecture`); навигация назад — `SwitchTo` на явные `State` (не `Back`), чтобы не
+  упереться в пропущенное окно.
 
 ## Чек
 

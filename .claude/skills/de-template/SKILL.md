@@ -1,6 +1,6 @@
 ---
 name: de-template
-description: Развернуть форк telegram-bot-template в самостоятельный проект по stable-артефактам docs/stack — имя проекта/пакета, README, .env.example, app.py/extensions.py/config.py wiring, prune reference-фич (start/profile/payments/lang/notifications). Активируй когда юзер форкнул шаблон и говорит "/de-template", "разверни фундамент", "де-темплейтизируй", "убери шаблонную мету", "сделай из шаблона свой проект", или когда init-service дошёл до развёртывания (стек спроектирован и stable). Движок skill-only: и механика, и wiring — reviewable edits под этой процедурой. НЕ запускать на каноническом репозитории шаблона.
+description: Развернуть форк telegram-bot-template в самостоятельный проект по stable-артефактам docs/stack — имя проекта/пакета, README, .env.example, app.py/config.py wiring, prune reference-фич (start/profile/payments/lang/notifications). Активируй когда юзер форкнул шаблон и говорит "/de-template", "разверни фундамент", "де-темплейтизируй", "убери шаблонную мету", "сделай из шаблона свой проект", или когда init-service дошёл до развёртывания (стек спроектирован и stable). Движок skill-only: и механика, и wiring — reviewable edits под этой процедурой. НЕ запускать на каноническом репозитории шаблона.
 ---
 
 # Skill: de-template (движок развёртывания)
@@ -63,7 +63,7 @@ description: Развернуть форк telegram-bot-template в самост
 
 ### A.3 `.env.example`
 
-Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `BACKEND_*_BASE_URL`, `OTEL_*`, `APP_ADMIN_IDS`, `BOT_I18N_*`. Секреты — только имена ключей (значения не коммить; `.claude/rules/env-local.md`).
+Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `*_BASE_URL`/`HTTPCLIENT_BACKENDS` при нескольких бэкендах), `OTEL_*`, `APP_ADMIN_IDS`, `BOT_I18N_*`. Секреты — только имена ключей (значения не коммить; `.claude/rules/env-local.md`).
 
 ### A.4 Strip шаблонной меты
 
@@ -78,7 +78,7 @@ description: Развернуть форк telegram-bot-template в самост
 
 ## Phase B — doc-driven wiring
 
-Артефакты `runtime`/`storage`/`dialogs`/`backends`/`messaging`/`auth`/`observability` разворачиваются как **reviewable diff поверх скелета** — `app.py` (список провайдеров), `extensions.py` (точки расширения tgbotkit: `RouterBundle`/`CommandBundle`/`NotifierBundle`/`ErrorUX`/resolver), `config.py` (`*Config`, i18n-каталоги, дефолт-локаль), `platform/*`. Процедура и маппинг `Generates`→код — см. **`references/wiring.md`**.
+Артефакты `runtime`/`storage`/`dialogs`/`backends`/`messaging`/`auth`/`observability` разворачиваются как **reviewable diff поверх скелета** — `app.py` (единый composition root: `ExtensionProvider` — точки расширения tgbotkit `RouterBundle`/`CommandBundle`/`NotifierBundle`/`ErrorUX`/resolver — и `build_container` — список провайдеров), `config.py` (`*Config`, `BackendsConfig`, i18n-каталоги, дефолт-локаль), `pkg/http_client/*`, `platform/*`. Процедура и маппинг `Generates`→код — см. **`references/wiring.md`**.
 
 ## Verify
 
@@ -102,6 +102,6 @@ uv run pytest -k collision   # startup-smoke: setup_dialogs без коллиз�
 ## См. также
 
 - `references/prune.md` — удаление reference-фич (полный чеклист).
-- `references/wiring.md` — doc-driven wiring артефактов в `app.py`/`extensions.py`/`config.py`.
+- `references/wiring.md` — doc-driven wiring артефактов в `app.py`/`config.py`/`pkg/http_client/*`.
 - `docs/stack/README.md` — контракт артефактов и их `Generates`.
 - `.claude/skills/init-service/SKILL.md` — оркестратор, чейнит сюда.

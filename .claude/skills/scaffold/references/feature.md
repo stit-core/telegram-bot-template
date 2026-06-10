@@ -1,6 +1,6 @@
 # scaffold › feature — новый вертикальный срез
 
-Создаёт новую фичу (bounded context одного пользовательского сценария) по конвенции шаблона. Полный гексагон — эталон `features/profile/`; полные скелеты файлов — `design/FEATURE-BLUEPRINT.md`. Соответствует rule `feature-architecture` (открой, если не загружено).
+Создаёт новую фичу (bounded context одного пользовательского сценария) по конвенции шаблона. Эталоны полного гексагона — `features/profile/`, `booking/`, `payments/`; полные скелеты файлов — `design/FEATURE-BLUEPRINT.md`. Соответствует rule `feature-architecture` (открой, если не загружено).
 
 **Gate (soft).** Флоу диалога проектируется **до** кода (`/dialog-deep-dive`): окна, переходы, getter-данные, состояния виджетов. Если флоу ещё не зафиксирован — сначала dialog-deep-dive, потом сюда. Жёсткого хука нет — дисциплина.
 
@@ -20,6 +20,7 @@
 - Полный гексагон (есть бэкенд-данные/мутации) или **сокращённый** (pure-сценарий без бэкенда, как `start`/`lang`)?
 - Сколько окон, какие переходы, какие данные в каждое окно (из dialog-deep-dive)?
 - Есть dispatcher-level вход (команда `/foo`)? Cross-feature зависимости?
+- Какой pkg-клиент даёт данные: метод существующего (`ProfileAPI`/`BookingAPI`/`PaymentsAPI`) или новый модуль в `pkg/http_client/internal/` (`references/backend-port.md` §A)?
 
 ## 2. Дерево фичи
 
@@ -28,22 +29,24 @@
 ```
 src/bot/features/<name>/
 ├── __init__.py        # фасад: Provider, dialog (+ cmd_spec/command_specs)
-├── state.py           # re-export StatesGroup + pydantic-данные диалога  [PURE]
-├── dto.py             # доменные DTO (anti-corruption)                    [PURE]
+├── state.py           # re-export StatesGroup + pydantic-данные диалога  [PURE, нижний слой]
+├── dto.py             # доменные DTO / результаты шагов wizard'а (опц.)  [PURE]
 ├── errors.py          # sentinel-ошибки (от shared.errors.FeatureError)   [PURE]
 ├── policy.py          # чистые решения → shared.decision.Decision         [PURE]
-├── ports.py           # Protocol-порты (BackendGateway, cross-feature)    [PURE]
-├── usecase.py         # оркестрация: порты + policy (+ logkit.Logger)
-├── gateway.py         # реализация порта поверх platform/backend → DTO    [I/O]
+├── ports.py           # Protocol-порты, типизированы wire-моделями pkg    [PURE]
+├── usecase.py         # оркестрация: порты + policy; anti-corruption (typed-ошибки → sentinel'ы)
 ├── views.py           # результат/ошибка usecase → данные виджетов/текст  [PURE]
 ├── dialogs.py         # Dialog(Window…)                                   [PRESENTATION]
 ├── getters.py         # @inject(aiogram_dialog) getter — данные в окно
-├── handlers.py        # @inject — реакции/навигация
+├── handlers.py        # @inject — реакции/навигация (без policy!)
 ├── adapters.py        # cross-feature anti-corruption (если есть)
-└── provider.py        # dishka Provider: порт→адаптер
+├── infra/             # не-HTTP реализации портов (cachekit-store…), если есть
+└── provider.py        # dishka Provider: порт → pkg-клиент / infra / адаптер
 ```
 
-**Сокращённый** (pure, как `start`/`lang`) опускает `dto`/`errors`/`views` и/или заменяет `gateway` на cachekit-store: `__init__`, `state`, `policy`, `ports`, `usecase`, `dialogs`, `getters`, `handlers`, `gateway` (над cachekit), `provider`. import-linter это допускает — слои `(views)`/`(ports)`/`(dto)` опциональны.
+HTTP-клиента **в фиче нет**: он в `src/bot/pkg/http_client/` (wire-модели + методы поверх `ApiClient`), порт фичи байндится на него напрямую в `provider.py`. `dto.py` — только для доменных типов поверх wire (payments: `Order(Money)`) и результатов шагов wizard'а (booking: `GuestsStep`); просмотровой фиче он не нужен (profile живёт на wire-`User`).
+
+**Сокращённый** (pure, как `start`/`lang`) опускает `dto`/`errors`/`views`, а вместо pkg-клиента держит реализацию порта в `infra/` (cachekit-store, образец — `start/infra/store.py`). import-linter это допускает — слои `(views)`/`(ports)`/`(dto)`/`(policy)` опциональны.
 
 ## 3. StatesGroup — в центральный каталог
 
@@ -55,7 +58,28 @@ class Referral(StatesGroup):
     INVITE = State()
 ```
 
-## 4. PURE-ядро (скелеты)
+## 4. pkg-клиент + PURE-ядро (скелеты)
+
+Wire-модель и метод клиента — в `pkg/http_client/internal/` (процедура и respx-тест — `references/backend-port.md` §A):
+
+```python
+# pkg/http_client/internal/referral.py
+from pydantic import BaseModel
+from pylibinfra.httpclient import ApiClient
+from bot.pkg.http_client.internal.codec import parse
+
+class Referral(BaseModel):
+    code: str
+    invited: int = 0
+
+class ReferralAPI:
+    def __init__(self, api: ApiClient) -> None:
+        self._api = api
+    async def get_referral(self, user_id: str) -> Referral:
+        return parse(Referral, await self._api.get(f"/v1/referrals/{user_id}"))
+```
+
+(+ `@provide def referral(self, clients: ApiClients) -> ReferralAPI` в `pkg/http_client/provider.py` поверх `clients.get(CORE_BACKEND)`.)
 
 ```python
 # state.py
@@ -70,14 +94,6 @@ class ReferralDialogData(BaseModel):   # только JSON-примитивы (�
 ```
 
 ```python
-# dto.py  (anti-corruption, не схема бэкенда)
-from pydantic import BaseModel
-class ReferralView(BaseModel):
-    code: str
-    invited: int = 0
-```
-
-```python
 # errors.py
 from bot.shared.errors import FeatureError
 class ReferralError(FeatureError): ...
@@ -85,66 +101,59 @@ class ReferralNotFound(ReferralError): ...
 ```
 
 ```python
-# policy.py  (без I/O; возвращает Decision)
+# policy.py  (без I/O; возвращает Decision; зовётся ТОЛЬКО из usecase)
 from bot.shared.decision import Decision, allow, deny
 def can_invite(role: str) -> Decision:
     return deny("Недоступно") if role == "banned" else allow()
 ```
 
 ```python
-# ports.py  (Protocol, узкий, возвращает локальный DTO)
+# ports.py  (Protocol, узкий; имена/типы = pkg-клиент → байнд без адаптера)
 from typing import Protocol
-from bot.features.referral.dto import ReferralView
-class BackendGateway(Protocol):
-    async def load(self, backend_user_id: str) -> ReferralView: ...
+from bot.pkg.http_client.internal.referral import Referral
+
+class ReferralGateway(Protocol):
+    async def get_referral(self, user_id: str) -> Referral: ...
 ```
 
-## 5. usecase / gateway / views
+## 5. usecase / views
 
 ```python
-# usecase.py — знает ТОЛЬКО порты + policy (+ Logger). Не httpx/aiogram/redis.
+# usecase.py — порты + policy (+ Logger). Anti-corruption: typed-ошибки → sentinel'ы ЗДЕСЬ.
+from pylibinfra.httpclient import NotFoundError, UnavailableError
 from pylibinfra.logkit import Logger
 from bot.features.referral import errors, policy
-from bot.features.referral.dto import ReferralView
-from bot.features.referral.ports import BackendGateway
+from bot.features.referral.ports import ReferralGateway
+from bot.pkg.http_client.internal.referral import Referral
 from bot.platform.identity import BotIdentity
 
 class ReferralUsecase:
-    def __init__(self, gateway: BackendGateway, log: Logger) -> None:
+    def __init__(self, gateway: ReferralGateway, log: Logger) -> None:
         self._gateway, self._log = gateway, log
 
-    async def view(self, identity: BotIdentity) -> ReferralView:
+    async def view(self, identity: BotIdentity) -> Referral:
         decision = policy.can_invite(identity.role)
         if not decision.allowed:
             raise errors.ReferralError(decision.reason)
-        return await self._gateway.load(identity.backend_user_id)
-```
-
-```python
-# gateway.py — единственный I/O; транспорт-ошибки → sentinel'ы фичи
-from bot.features.referral import errors
-from bot.features.referral.dto import ReferralView
-from bot.platform.backend import BackendClient, BackendNotFound, BackendUnavailable
-
-class HttpReferralGateway:           # структурно удовлетворяет ports.BackendGateway
-    def __init__(self, http: BackendClient) -> None:
-        self._http = http
-    async def load(self, backend_user_id: str) -> ReferralView:
         try:
-            raw = await self._http.get(f"/v1/referrals/{backend_user_id}")
-        except BackendNotFound as e:
-            raise errors.ReferralNotFound(str(e)) from e
-        except BackendUnavailable as e:
-            raise errors.ReferralError("Сервис недоступен") from e
-        return ReferralView(code=raw["code"], invited=int(raw.get("invited", 0)))
+            return await self._gateway.get_referral(identity.backend_user_id)
+        except NotFoundError as exc:
+            raise errors.ReferralNotFound(str(exc)) from exc
+        except UnavailableError as exc:
+            raise errors.ReferralError("Сервис недоступен") from exc
 ```
+
+Wizard-фича: **все** шаги — методы usecase, включая passthrough (`BookingUsecase.set_services`); шаг возвращает результат-данные (`set_guests → GuestsStep(draft, address_required)` в `dto.py`), а не трогает `DialogManager` — какой экран следующий, решает handler по этим данным.
 
 ```python
 # views.py — единственное место «ошибка → user-текст»
+from typing import Any
 from bot.features.referral import errors
-from bot.features.referral.dto import ReferralView
-def to_window(v: ReferralView) -> dict[str, object]:
+from bot.pkg.http_client.internal.referral import Referral
+
+def to_window(v: Referral) -> dict[str, Any]:
     return {"code": v.code, "invited": v.invited}
+
 def error_text(err: Exception) -> str:
     match err:
         case errors.ReferralNotFound(): return "Реферальная программа недоступна."
@@ -192,7 +201,10 @@ async def referral_getter(
 ```
 
 ```python
-# handlers.py — реакции/навигация. dialog-level on_click → @inject из aiogram_dialog;
+# handlers.py — реакции/навигация; БЕЗ policy (import-linter «Handlers/getters без policy»):
+# валидация/ветвление приходят результатом usecase, handler мапит их на экран (switch_to)
+# и ошибку на текст (views.error_text). Формат-валидация ввода — type_factory → on_error.
+# dialog-level on_click → @inject из aiogram_dialog;
 # dispatcher-level (команда) → @inject из dishka.integrations.aiogram, DialogManager — обычный kwarg.
 from aiogram.types import Message
 from aiogram_dialog import DialogManager, StartMode
@@ -211,28 +223,29 @@ async def on_referral_command(
 ## 7. provider / adapters / __init__
 
 ```python
-# provider.py — порт → реализация (DIP), Scope.REQUEST
+# provider.py — порт → pkg-клиент напрямую (DIP; Protocol совместим структурно), Scope.REQUEST
 from dishka import Provider, Scope, provide
 from pylibinfra.logkit import Logger
-from bot.features.referral.gateway import HttpReferralGateway
-from bot.features.referral.ports import BackendGateway
+from bot.features.referral.ports import ReferralGateway
 from bot.features.referral.usecase import ReferralUsecase
-from bot.platform.backend import BackendClient
+from bot.pkg.http_client.internal.referral import ReferralAPI
 
 class ReferralProvider(Provider):
     scope = Scope.REQUEST
     @provide
-    def gateway(self, http: BackendClient) -> BackendGateway:
-        return HttpReferralGateway(http)
+    def gateway(self, api: ReferralAPI) -> ReferralGateway:
+        return api
     @provide
-    def usecase(self, gw: BackendGateway, log: Logger) -> ReferralUsecase:
+    def usecase(self, gw: ReferralGateway, log: Logger) -> ReferralUsecase:
         return ReferralUsecase(gw, log)
 ```
 
-`adapters.py` — только если фиче нужны данные другой фичи: объяви cross-feature порт в **своём** `ports.py`, адаптер мапит чужой usecase, связь — в `provider.py` (образец — `profile/adapters.py` + `OnboardingReader`). Это единственное (вместе с provider) место импорта другой фичи.
+Не-HTTP порт (кэш/Redis) — реализация в `infra/` (структурно удовлетворяет Protocol), байнд так же в `provider.py` (образец — `start/provider.py`: `OnboardingStore → CacheOnboardingStore(cache)`).
+
+`adapters.py` — только если фиче нужны данные другой фичи: объяви cross-feature порт в **своём** `ports.py`, адаптер мапит чужой usecase, связь — в `provider.py` (образец — `profile/adapters.py` + `OnboardingReader`; процедура — `references/backend-port.md` §D). Это единственное (вместе с provider) место импорта другой фичи.
 
 ```python
-# __init__.py — фасад: ровно то, что видят app.py/extensions.py
+# __init__.py — фасад: ровно то, что видит app.py
 from aiogram.filters import Command
 from pylibinfra.tgbotkit import CommandSpec
 from bot.features.referral.dialogs import referral_dialog as dialog
@@ -243,16 +256,19 @@ cmd_spec = CommandSpec("message", on_referral_command, (Command("referral"),))
 __all__ = ["Provider", "cmd_spec", "dialog"]
 ```
 
-## 8. Регистрация в точки расширения
+## 8. Регистрация — всё в `src/bot/app.py` (единый composition root)
 
-- **`src/bot/app.py`**: импортируй фичу, добавь `referral.Provider()` в `make_async_container(...)`.
-- **`src/bot/extensions.py`** (`ExtensionProvider`): добавь `referral` в импорт `from bot.features import …`; `referral.dialog` в `routers()` (`RouterBundle`); `referral.cmd_spec` в `commands()` (`CommandBundle`).
+- добавь `referral` в импорт `from bot.features import …`;
+- `referral.Provider()` — в `build_container()` (`make_async_container(...)`, блок «фичи»);
+- `referral.dialog` — в `ExtensionProvider.routers()` (`RouterBundle`); `referral.cmd_spec` — в `commands()` (`CommandBundle`);
 - **`src/bot/config.py`**: если есть переводы — добавь `referral.ftl` в `_I18N_RESOURCES` и заведи `src/bot/locales/<lang>/referral.ftl` (ключи с префиксом `referral-`).
 
 ## 9. Тесты (RED→GREEN)
 
+- `tests/pkg/test_referral_api.py` — respx-тест нового pkg-клиента (`references/backend-port.md` §A.4).
+- `tests/unit/test_referral_usecase.py` — usecase на **фейке порта**: policy-гейты без I/O, маппинг typed-ошибок в sentinel'ы (образец — `test_profile_usecase.py`).
 - `tests/unit/test_referral_policy.py` — pure policy/views.
-- `tests/flows/test_referral_flow.py` — flow через `BotClient`+`MockMessageManager`+`make_container`/`build_dp` (`tests/_fakes/harness.py`). Мокай порт через `FakeBackendClient`. Локай кнопки по `callback_data`/тексту.
+- `tests/flows/test_referral_flow.py` — flow через `BotClient`+`MockMessageManager`+`make_container`/`build_dp` (`tests/_fakes/harness.py`). Бэкенд — `FakeApiClient` (`tests/_fakes/backend.py`; новый pkg-клиент поверх него — добавь `@provide` в `FakesProvider` harness'а). Локай кнопки по `callback_data`/тексту.
 - `tests/flows/test_composition.py` — добавь `referral.dialog` в список детача (`for dialog in (...)`), чтобы startup-smoke покрыл коллизии StatesGroup.
 
 ```python
@@ -279,19 +295,21 @@ async def test_referral_command_opens_window() -> None:
 ## 10. Верификация + коммит
 
 ```bash
-make lint                     # import-linter держит слои/независимость/чистое ядро
-make typecheck                # mypy: gateway структурно удовлетворяет порту
+make lint                     # import-linter: слои/независимость/чистое ядро/handlers без policy/pkg
+make typecheck                # mypy: pkg-клиент структурно удовлетворяет порту
 uv run pytest -k "referral or collision" -q
 make check                    # перед claim «готово»
 ```
 
-`feat(referral): scaffold referral feature` (бэкенд-данные → `+ backend gateway`; cross-feature → `+ <X>Reader port`).
+`feat(referral): scaffold referral feature` (новый pkg-клиент → `+ referral api client`; cross-feature → `+ <X>Reader port`).
 
 ## Anti-patterns
 
 - ❌ Скопировать `profile/` целиком и переименовать — тащит чужую специфику. Делай по скелетам.
+- ❌ HTTP-вызовы внутри фичи (свой клиент/сырой `httpx`) — клиент живёт в `pkg/http_client/`, фича видит порт.
 - ❌ Окно без `state=` / `State()` по месту вместо `platform/dialogs/states.py`.
-- ❌ I/O в getter (getter дёргает **usecase**, не gateway). Мутации — в handler.
+- ❌ I/O в getter (getter дёргает **usecase**, не порт/pkg-клиент). Мутации — в handler.
+- ❌ `policy` в getter/handler — доменные решения приходят результатом usecase (import-linter заблокирует).
 - ❌ Импорт другой фичи из ядра/presentation — только `adapters.py`/`provider.py`.
-- ❌ Не зарегистрировать в `app.py`+`extensions.py` — фича не подключится (бот её не увидит).
+- ❌ Не зарегистрировать в `app.py` (`build_container` + `ExtensionProvider`) — фича не подключится.
 - ❌ Забыть `referral.dialog` в `test_composition.py` — startup-smoke не покроет коллизию.

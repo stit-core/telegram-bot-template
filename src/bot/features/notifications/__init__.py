@@ -1,7 +1,7 @@
 """Фасад фичи notifications: build_router(cache, redis) → Notifier для NotifierBundle.
 
 Не dishka-Provider: Notifier'у нужны cache+redis из контейнера, поэтому его собирает
-ExtensionProvider (см. bot/extensions.py), вызывая build_router. Какие stream/subject/durable
+ExtensionProvider (см. bot/app.py), вызывая build_router. Какие stream/subject/durable
 и deliver_* — здесь; механика подписки/доставки/drain — в tgbotkit.
 """
 

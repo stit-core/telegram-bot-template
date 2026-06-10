@@ -55,7 +55,7 @@ def build_cleanup_job(uc: CleanupUsecase) -> PeriodicJob:
     return PeriodicJob(name="cleanup-drafts", interval=300.0, handler=_run)
 ```
 
-> `timerkit` — опциональный kit (`docs/stack/dependencies.md`). Если в проекте джоб ещё не было — точка расширения (`list[PeriodicJob]`) могла не существовать в `extensions.py`/`app.py`: её добавление в kit-интеграцию — `infra-handoff` (`runtime-dep`).
+> `timerkit` — опциональный kit (`docs/stack/dependencies.md`). Если в проекте джоб ещё не было — точка расширения (`list[PeriodicJob]`) могла не существовать в `app.py`: её добавление в kit-интеграцию — `infra-handoff` (`runtime-dep`).
 
 ## 4. Если джоба шлёт в Telegram — фоновая доставка
 
@@ -64,8 +64,8 @@ def build_cleanup_job(uc: CleanupUsecase) -> PeriodicJob:
 ## 5. Регистрация
 
 - экспортируй `build_cleanup_job` из фасада фичи;
-- собери `list[PeriodicJob]` в провайдере (резолвит `CleanupUsecase` → `build_cleanup_job(uc)`), по образцу `NotifierBundle` в `extensions.py`;
-- провайдер фичи (`CleanupProvider`) — в `make_async_container(...)`.
+- собери `list[PeriodicJob]` в `ExtensionProvider` (`app.py`; резолвит `CleanupUsecase` → `build_cleanup_job(uc)`), по образцу метода `notifiers` (`NotifierBundle`);
+- провайдер фичи (`CleanupProvider`) — в `build_container()` (`make_async_container(...)`).
 
 ## 6. Тесты + верификация
 

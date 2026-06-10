@@ -15,6 +15,7 @@ from dishka import Provider, Scope, provide
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pylibinfra.cachekit import Config as CacheConfig
+from pylibinfra.httpclient import BackendsConfig
 from pylibinfra.httpclient import Config as HttpConfig
 from pylibinfra.logkit import Config as LogConfig
 from pylibinfra.logkit import RedactConfig
@@ -22,6 +23,8 @@ from pylibinfra.natskit import Config as NatsConfig
 from pylibinfra.telemetry import Config as TelConfig
 from pylibinfra.tgbotkit import Config as BotConfig
 from pylibinfra.tgbotkit import I18nConfig
+
+from bot.pkg.http_client import CORE_BACKEND
 
 # Каталог переводов внутри пакета (bot/locales/<locale>/<resource>.ftl). Дефолт-локаль
 # шаблона — ru (kit-дефолт — en). Имена ресурсов = префиксы фич (один .ftl на фичу).
@@ -80,6 +83,12 @@ class AppConfigProvider(Provider):
     @provide
     def http(self) -> HttpConfig:
         return HttpConfig()
+
+    @provide
+    def backends(self, http: HttpConfig) -> BackendsConfig:
+        # единственный internal-бэкенд «core» (profile/booking/payments — один base_url):
+        # переиспользует одиночный HTTPCLIENT_*-конфиг; breaker получит имя «core»
+        return BackendsConfig(backends={CORE_BACKEND: http})
 
     @provide
     def nats(self) -> NatsConfig:

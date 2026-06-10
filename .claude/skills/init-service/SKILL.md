@@ -45,13 +45,13 @@ description: Оркестратор онбординга потребителя 
 ### 3. Развернуть фундамент → `de-template`
 
 - Gate: стек `stable`, валидатор зелёный, state чист.
-- **Чейнь в `de-template`**: читает stable-артефакты, разворачивает по `Generates` — имя проекта, README, `.env.example`, wiring `app.py`/`extensions.py`/`config.py`. Механика детерминирована (Phase A); wiring — reviewable diff (Phase B). Зависимость `pylibinfra[tgbotkit]` остаётся.
+- **Чейнь в `de-template`**: читает stable-артефакты, разворачивает по `Generates` — имя проекта, README, `.env.example`, wiring `app.py`/`config.py`. Механика детерминирована (Phase A); wiring — reviewable diff (Phase B). Зависимость `pylibinfra[tgbotkit]` остаётся.
 
 ### 4. Scaffold спроектированных фич → `scaffold feature`
 
 Платформа развёрнута — теперь по каждому **stable**-флоу из этапа 1 разверни код фичи:
 
-- **Чейнь в `scaffold` (вариант `feature`)** per фича: разворачивает вертикальный срез `features/<name>/` (полный гексагон или сокращённый), Provider, регистрацию в `extensions.py`, StatesGroup в `platform/dialogs/states.py`.
+- **Чейнь в `scaffold` (вариант `feature`)** per фича: разворачивает вертикальный срез `features/<name>/` (полный гексагон или сокращённый), Provider, регистрацию в `app.py` (`build_container` + `ExtensionProvider`), StatesGroup в `platform/dialogs/states.py`; бэкенд-данные — pkg-клиент (`scaffold` backend-port).
 - **Инвариант порядка**: scaffold своих фич идёт **до** удаления reference (этап 5) — иначе теряешь живой образец.
 
 ### 5. Удалить/переделать reference-фичи
@@ -74,7 +74,7 @@ description: Оркестратор онбординга потребителя 
 
 ## Anti-patterns
 
-- ❌ Кодить/править `platform`/`extensions.py` до того как спроектированы артефакты.
+- ❌ Кодить/править `platform`/`app.py` до того как спроектированы артефакты.
 - ❌ Удалять reference-фичи до того как свои готовы (теряешь живой образец гексагона).
 - ❌ Удалить `start` целиком, оставив бота без ROOT-диалога.
 - ❌ Дублировать процедуру deep-dive внутри этого скилла — он только дирижёр.

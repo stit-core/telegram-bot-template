@@ -24,7 +24,7 @@ description: Оформить INFRA-HANDOFF-блок для инфра-адми�
 
 | Класс | Примеры | Адресат |
 |---|---|---|
-| **env / секреты** | `BOT_TOKEN`, `WEBHOOK_SECRET`, `REDIS_URL`, `NATS_URL`, `BACKEND_*_BASE_URL`, `OTEL_*`, `APP_ADMIN_IDS` | секрет → корп (Vault); тюнинг → проект (compose) |
+| **env / секреты** | `BOT_TOKEN`, `WEBHOOK_SECRET`, `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_*` / `*_BASE_URL` именованных бэкендов, `OTEL_*`, `APP_ADMIN_IDS` | секрет → корп (Vault); тюнинг → проект (compose) |
 | **runtime-режим** | `BOT_MODE=polling↔webhook`, инстансы (webhook ≥2 + `RedisEventIsolation`), `set_webhook` single-flight, `allowed_updates` | проект |
 | **cross-service контракт** | новый NATS-subject/stream/durable для notification (бот ↔ бэкенд) | проект + владелец бэкенда |
 | **runtime-deps / ёмкость** | новая зависимость в `pyproject.toml`, ревизия `pylibinfra[tgbotkit]`, Redis/NATS capacity | проект |

@@ -1,6 +1,6 @@
 ---
 name: scaffold
-description: Добавить строительный блок в существующего бота по конвенциям шаблона. Варианты — feature (новый вертикальный срез features/<name>/ с гексагоном, Provider, StatesGroup, регистрацией в extensions.py), dialog (новый Dialog/набор Window внутри фичи), window (окно в существующий диалог), backend-port (порт BackendGateway-метод + адаптер в gateway.py), middleware (outer/inner-middleware — через PR в tgbotkit), job (периодическая джоба timerkit), notification (NATS-подписчик + доставка через BgManager). Активируй когда юзер говорит "добавь фичу/диалог/окно/порт/джобу/уведомление", "новая команда/кнопка/экран", "scaffold a feature", "после события X слать сообщение", "фиче A нужны данные из B/бэкенда". Для правки существующего блока scaffold НЕ нужен — это прямая правка.
+description: Добавить строительный блок в существующего бота по конвенциям шаблона. Варианты — feature (новый вертикальный срез features/<name>/ с гексагоном, Provider, StatesGroup, регистрацией в app.py), dialog (новый Dialog/набор Window внутри фичи), window (окно в существующий диалог), backend-port (pkg-клиент + порт фичи в ports.py), middleware (outer/inner-middleware — через PR в tgbotkit), job (периодическая джоба timerkit), notification (NATS-подписчик + доставка через BgManager). Активируй когда юзер говорит "добавь фичу/диалог/окно/порт/джобу/уведомление", "новая команда/кнопка/экран", "scaffold a feature", "после события X слать сообщение", "фиче A нужны данные из B/бэкенда". Для правки существующего блока scaffold НЕ нужен — это прямая правка.
 ---
 
 # Skill: scaffold (роутер)
@@ -14,7 +14,7 @@ description: Добавить строительный блок в сущест�
 | Новый вертикальный срез фичи (гексагон, Provider, StatesGroup, регистрация) | `feature` | `references/feature.md` | «добавь фичу `referral`», «новый раздел бота» |
 | Новый `Dialog`/набор `Window` внутри существующей фичи | `dialog` | `references/dialog.md` | «добавь второй диалог в profile», «отдельный флоу настроек» |
 | Окно в существующий диалог (state + getter + handler) | `window` | `references/window.md` | «добавь экран подтверждения», «ещё один шаг в визард» |
-| Порт `BackendGateway`-метод + адаптер + DTO | `backend-port` | `references/backend-port.md` | «фиче нужны данные с бэкенда», «фиче A нужны данные из B» |
+| pkg-клиент (метод/модуль в `pkg/http_client/`) + порт фичи | `backend-port` | `references/backend-port.md` | «фиче нужны данные с бэкенда», «подключи CRM/LLM-API», «фиче A нужны данные из B» |
 | Outer/inner-middleware (throttle/auth/i18n) | `middleware` | `references/middleware.md` | «добавь rate-limit», «глобальную проверку бана» |
 | Периодическая джоба (`timerkit`) | `job` | `references/job.md` | «каждые N минут чистить», «напоминание по расписанию» |
 | NATS-подписчик → сообщение/диалог (`BgManager`) | `notification` | `references/notification.md` | «после события бэкенда X слать сообщение», «push при оплате» |
@@ -42,22 +42,24 @@ Reference даёт variant-специфичные шаги; этот ритм о
 
 ## Регистрация в точки расширения tgbotkit
 
-Главное отличие от go-scaffold: бот **ничего не проводит в рантайм руками** — он **декларирует** блоки в точки расширения, наполняемые в `src/bot/extensions.py` (`ExtensionProvider`) и `src/bot/app.py`:
+Главное отличие от go-scaffold: бот **ничего не проводит в рантайм руками** — он **декларирует** блоки в точки расширения. Composition root один — `src/bot/app.py`: класс `ExtensionProvider` (точки расширения) + `build_container()` (провайдеры):
 
 | Блок | Куда регистрируется |
 |---|---|
-| `Dialog` (фича/новый диалог) | `RouterBundle` (метод `routers` в `extensions.py`) |
+| `Dialog` (фича/новый диалог) | `RouterBundle` (метод `routers` в `ExtensionProvider`, `app.py`) |
 | dispatcher-level хендлер (команда, pre_checkout, successful_payment) | `CommandBundle` через `CommandSpec(observer, handler, filters)` (метод `commands`) |
 | NATS-подписчик | `NotifierBundle` через `NotificationRouter.on(...)` (метод `notifiers`) |
-| dishka Provider фичи | `make_async_container(...)` в `app.py` |
+| dishka Provider фичи | `build_container()` в `app.py` (`make_async_container(...)`) |
+| pkg-клиент нового API | `@provide` в `pkg/http_client/provider.py` (+ имя в `BackendsConfig`, `config.py`) |
 | `StatesGroup` | `src/bot/platform/dialogs/states.py` (единый каталог) |
 | ErrorUX / resolver локали / stream-bus | соответствующие методы `ExtensionProvider` |
 
-Фасад фичи `__init__.py` экспортит ровно `Provider` + `dialog` (+ `cmd_spec`/`command_specs`) — это всё, что видят `app.py`/`extensions.py`.
+Фасад фичи `__init__.py` экспортит ровно `Provider` + `dialog` (+ `cmd_spec`/`command_specs`) — это всё, что видит `app.py`.
 
 ## Anti-patterns (общие; variant-специфичные — в reference)
 
-- ❌ I/O в getter/handler / прямой `httpx`/`redis` мимо usecase→gateway.
+- ❌ I/O в getter/handler / прямой `httpx`/`redis` мимо usecase→порта (HTTP — только pkg-клиенты).
+- ❌ `policy` в getter/handler — доменные решения приходят результатом usecase (import-linter).
 - ❌ Прямой импорт другой фичи — только порт + адаптер (`backend-port`, через `adapters.py`/`provider.py`).
 - ❌ `State()` по месту в окне — только из `platform/dialogs/states.py`.
 - ❌ `print`/stdlib `logging` — только `pylibinfra.logkit.Logger` (забанено ruff T20 + banned-api).

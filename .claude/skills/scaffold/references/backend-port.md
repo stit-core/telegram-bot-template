@@ -1,80 +1,229 @@
-# scaffold › backend-port — порт + адаптер + DTO
+# scaffold › backend-port — pkg-клиент + порт фичи
 
-Добавляет фиче новый источник данных через **порт (Protocol) + реализацию + DTO**: либо новый метод бэкенда (`BackendGateway`), либо cross-feature чтение из другой фичи. Граница «ядро не знает про httpx/другую фичу» enforce-ится import-linter'ом — порт это и есть способ её соблюсти. Соответствует rule `feature-architecture`.
+Добавляет фиче новый источник данных. HTTP живёт **не в фиче**, а в `src/bot/pkg/http_client/` (клиенты областей API поверх `pylibinfra.httpclient.ApiClient`); фича видит его через **порт** — Protocol в `ports.py`, типизированный wire-моделями pkg-клиента (имена методов порта = имена методов клиента), `provider.py` байндит порт → pkg-клиент **напрямую** (структурно, mypy проверяет). Anti-corruption — в **usecase**: единственная точка маппинга typed-ошибок kit'а (`NotFoundError`/`ConflictError`/`UnavailableError`) в sentinel'ы `errors.py` (+ wire→домен, где нужно). Границы enforce'ит import-linter («Чистое ядро», «pkg не знает про бот»). Соответствует rule `feature-architecture`.
 
-## Два случая (выбери)
+## Случаи (выбери)
 
-| Случай | Порт где | Реализация где |
+| Случай | Что делаешь | Образец |
 |---|---|---|
-| **Backend-метод** — фиче нужны данные/мутация на бэкенде | `ports.py` фичи (`BackendGateway`) | `gateway.py` (HTTP поверх `platform/backend`) |
-| **Cross-feature** — фиче A нужны данные из фичи B | `ports.py` фичи-потребителя (свой узкий порт) | `adapters.py` (мапит чужой usecase) |
+| **Backend-метод** — данные/мутация на нашем бэкенде | §A (pkg-клиент, `internal/`) + §B (порт) | `ProfileAPI` + `profile.ports.BackendGateway` |
+| **Сторонний API** (CRM/LLM/биллинг) | §A в `external/` + §C (именованный бэкенд) + §B | `pkg/http_client/external/` |
+| **Cross-feature** — фиче A нужны данные из фичи B | §D (порт + адаптер) | `profile.ports.OnboardingReader` + `profile.adapters.OnboardingReaderAdapter` |
 
-Образцы: backend — `profile.ports.BackendGateway` + `profile.gateway.HttpProfileGateway`; cross-feature — `profile.ports.OnboardingReader` + `profile.adapters.OnboardingReaderAdapter`.
-
-Ходишь в **несколько** независимых API (CRM/LLM/биллинг) — это не порт фичи, а platform-wiring: раздел **C. Несколько именованных бэкендов** ниже.
+Не-HTTP реализация порта (Redis/кэш) — не сюда: модуль в `features/<имя>/infra/` (образец — `start/infra/store.py: CacheOnboardingStore`), байнд в `provider.py` фичи.
 
 ## Когда применять
 
 - «Фиче нужно дёрнуть `GET /v1/...`» / «добавь мутацию на бэкенд».
+- «Подключи CRM/LLM-сервис» (второй base_url).
 - «Фиче referral нужен флаг онбординга из start».
 
 ## Когда НЕ применять
 
 - Вызов внутри одной фичи — просто метод usecase.
 - Данные уже есть в state/identity — порт не нужен.
+- pkg-клиент и порт уже есть, нужен экран — `references/window.md`/`references/dialog.md`.
 
 ---
 
-## A. Backend-метод
+## A. Метод pkg-клиента
 
 ### 1. Понять контракт
-Endpoint, метод, форма ответа, коды ошибок (404 → sentinel? 5xx/breaker → `BackendUnavailable`?), идемпотентность мутации (`Idempotency-Key`?).
+Endpoint, метод, форма ответа, идемпотентность мутации (`Idempotency-Key`?). Коды ошибок мапит сам `ApiClient`: 404 → `NotFoundError`, 409 → `ConflictError`, прочие 4xx / 5xx-после-ретраев / transport / открытый breaker / не-JSON 2xx → `UnavailableError`.
 
-### 2. DTO (anti-corruption) — `dto.py`
-Локальный тип фичи, не схема бэкенда:
+### 2. Wire-модель + метод клиента
+В существующий класс (`internal/profile.py: ProfileAPI` / `booking.py: BookingAPI` / `payments.py: PaymentsAPI`) или новый модуль `internal/<area>.py` (сторонний API — `external/<area>.py`). Ответ валидируй через `parse` (`internal/codec.py`: `ValidationError` → `UnavailableError` — ломаный контракт бэкенда = недоступность):
+
 ```python
+# pkg/http_client/internal/billing.py
+from pydantic import BaseModel
+from pylibinfra.httpclient import ApiClient
+
+from bot.pkg.http_client.internal.codec import parse
+
+
 class Balance(BaseModel):
     amount: int
     currency: str = "XTR"
+
+
+class BillingAPI:
+    def __init__(self, api: ApiClient) -> None:
+        self._api = api
+
+    async def get_balance(self, user_id: str) -> Balance:
+        raw = await self._api.get(f"/v1/balance/{user_id}")
+        return parse(Balance, raw)
 ```
 
-### 3. Метод порта — `ports.py`
-Сужай до того, что нужно ЭТОМУ сценарию (ISP):
-```python
-class BackendGateway(Protocol):
-    async def load_balance(self, backend_user_id: str) -> Balance: ...
-```
-Если у фичи уже есть `BackendGateway` — добавь метод в него.
+Мутация — `idempotency_key=` (ключ обязан быть **ASCII-safe**: кириллица в latin-1 HTTP-заголовке падает `UnicodeEncodeError` до запроса — хэшируй, как `ProfileAPI.rename_user`):
 
-### 4. Реализация — `gateway.py`
-Маппит транспорт-ошибки в sentinel'ы; `httpx` скрыт за `platform/backend.BackendClient`:
 ```python
-async def load_balance(self, backend_user_id: str) -> Balance:
-    try:
-        raw = await self._http.get(f"/v1/balance/{backend_user_id}")
-    except BackendNotFound as e:
-        raise errors.BalanceNotFound(str(e)) from e
-    except BackendUnavailable as e:
-        raise errors.FeatureError("Сервис недоступен") from e
-    return Balance(amount=int(raw["amount"]), currency=raw.get("currency", "XTR"))
-```
-Мутация — добавь `idempotency_key=` (как `profile.gateway.update_name` / `payments.gateway.fulfill`):
-```python
-await self._http.post(f"/v1/orders/{oid}/cancel", json={...}, idempotency_key=f"cancel:{oid}")
+await self._api.post(f"/v1/orders/{oid}/cancel", json={...}, idempotency_key=f"cancel:{oid}")
 ```
 
-### 5. Использовать в usecase
-usecase зовёт **порт** (тип — `BackendGateway`), не gateway-класс. provider.py уже связывает порт→`HttpXxxGateway` — если порт существующий, новый метод доступен сразу.
+Typed-ошибки клиент **не ловит** — они и есть его контракт. Исключение — идемпотентное смягчение, когда 409/404 на повторе = «уже применено» = успех (образец — `PaymentsAPI.fulfill_order`/`revoke_order`).
+
+### 3. Провайд клиента
+Тот же бэкенд «core» — `@provide` в `pkg/http_client/provider.py` (`InternalApiProvider`) поверх реестра:
+
+```python
+@provide
+def billing(self, clients: ApiClients) -> BillingAPI:
+    return BillingAPI(clients.get(CORE_BACKEND))
+```
+
+Другой base_url (другой сервис) → §C.
+
+### 4. respx-тест — `tests/pkg/`
+Транспорт-граница тестируется здесь и только здесь (фикстура `api` — `tests/pkg/conftest.py`: `ApiClient` без ретраев на `http://backend`):
+
+```python
+# tests/pkg/test_billing_api.py
+import httpx
+import pytest
+import respx
+from pylibinfra.httpclient import ApiClient, NotFoundError, UnavailableError
+
+from bot.pkg.http_client.internal.billing import BillingAPI
+
+pytestmark = pytest.mark.unit
+
+
+@respx.mock
+async def test_get_balance_returns_model(api: ApiClient) -> None:
+    respx.get("http://backend/v1/balance/u1").mock(
+        return_value=httpx.Response(200, json={"amount": 5, "currency": "XTR"})
+    )
+    assert (await BillingAPI(api).get_balance("u1")).amount == 5
+
+
+@respx.mock
+async def test_get_balance_broken_contract_raises_unavailable(api: ApiClient) -> None:
+    respx.get("http://backend/v1/balance/u1").mock(
+        return_value=httpx.Response(200, json={"unexpected": "shape"})
+    )
+    with pytest.raises(UnavailableError, match="contract violation"):
+        await BillingAPI(api).get_balance("u1")
+```
+
+Проверь как минимум: happy path (модель собралась), 404 → `NotFoundError`, ломаный контракт → `UnavailableError`; у мутации — заголовок `Idempotency-Key` (ASCII-safe).
 
 ---
 
-## B. Cross-feature
+## B. Порт фичи
+
+### 1. Protocol — `ports.py`
+Сужай до методов ЭТОГО сценария (ISP). Имена и типы — **как у pkg-клиента** (структурная совместимость, без адаптера):
+
+```python
+from typing import Protocol
+
+from bot.pkg.http_client.internal.billing import Balance
+
+
+class BillingGateway(Protocol):
+    async def get_balance(self, user_id: str) -> Balance: ...
+```
+
+Если у фичи уже есть порт (`BackendGateway`) — добавь метод в него.
+
+### 2. Байнд — `provider.py` фичи
+
+```python
+@provide
+def gateway(self, api: BillingAPI) -> BillingGateway:
+    return api
+
+@provide
+def usecase(self, gw: BillingGateway, log: Logger) -> BillingUsecase:
+    return BillingUsecase(gw, log)
+```
+
+### 3. Маппинг ошибок — в usecase (единственная точка)
+usecase знает порт + policy; typed-ошибки httpclient мапит в sentinel'ы фичи **здесь**, не в getter/handler:
+
+```python
+async def balance(self, identity: BotIdentity) -> Balance:
+    decision = policy.can_view_balance(identity.role)
+    if not decision.allowed:
+        raise errors.BillingForbidden(decision.reason)
+    try:
+        return await self._gateway.get_balance(identity.backend_user_id)
+    except NotFoundError as exc:
+        raise errors.BalanceNotFound(str(exc)) from exc
+    except UnavailableError as exc:
+        raise errors.BillingError("Сервис временно недоступен") from exc
+```
+
+Нужен доменный тип вместо wire-модели (единицы, инварианты) — мапь тут же и держи его в `dto.py` (образец — payments: wire-`Offer` → `Order(Money)` в `PaymentsUsecase.offer`). Просмотровым фичам хватает wire-модели как есть (profile отдаёт `User`).
+
+### 4. Юнит-тест usecase — фейк порта
+Не транспорт: рукописный фейк, структурно удовлетворяющий Protocol (образцы — `tests/unit/test_profile_usecase.py`, `test_booking_usecase.py`):
+
+```python
+class _Gateway:
+    def __init__(self, error: Exception | None = None) -> None:
+        self._error = error
+
+    async def get_balance(self, user_id: str) -> Balance:
+        if self._error is not None:
+            raise self._error
+        return Balance(amount=5)
+
+
+async def test_balance_maps_unavailable() -> None:
+    uc = BillingUsecase(_Gateway(error=UnavailableError("503")), nop())
+    with pytest.raises(errors.BillingError):
+        await uc.balance(_IDENTITY)
+```
+
+Flow-тесты не трогаются: harness (`tests/_fakes/harness.py`) отдаёт pkg-клиенты поверх `FakeApiClient` (`tests/_fakes/backend.py` — in-memory заглушка kit-`ApiClient`: payload-словарь, `get_error`/`patch_error` для инжекта kit-ошибок).
+
+---
+
+## C. Несколько именованных бэкендов
+
+Бот ходит в **несколько** независимых API (core + CRM/LLM/биллинг). Реестр — kit: `BackendsConfig.backends: dict[имя, Config]` → `ApiClientsProvider` (уже в `app.py`) → `ApiClients.get(имя)`. Дефолтное имя breaker'а = имя бэкенда → per-API метрики `http_client_breaker_*{name="crm"}`. dishka различает клиентов по **классам областей API** (`CrmAPI` vs `ProfileAPI`) — никаких маркер-обёрток не нужно.
+
+1. **Модуль клиента** — §A (`internal/crm.py` или `external/crm.py`).
+2. **Имя-константа + `@provide`** — `pkg/http_client/provider.py`:
+
+```python
+CRM_BACKEND = "crm"
+
+@provide
+def crm(self, clients: ApiClients) -> CrmAPI:
+    return CrmAPI(clients.get(CRM_BACKEND))
+```
+
+3. **Запись в `BackendsConfig`** — `config.py` (`AppConfigProvider.backends`); каждому бэкенду свой `base_url`:
+
+```python
+@provide
+def backends(self, http: HttpConfig) -> BackendsConfig:
+    return BackendsConfig(
+        backends={
+            CORE_BACKEND: http,  # одиночный HTTPCLIENT_* (HTTPCLIENT_BASE_URL)
+            CRM_BACKEND: HttpConfig(base_url=os.environ.get("CRM_BASE_URL", "")),
+        }
+    )
+```
+
+Альтернатива программной записи — env-JSON целиком: `HTTPCLIENT_BACKENDS='{"core": {"base_url": "..."}, "crm": {"base_url": "..."}}'` (тогда `backends()` возвращает `BackendsConfig()`); выбор источника — решение стека (`docs/stack/backends.md`).
+
+> Новый `*_BASE_URL` env — инфра-поверхность: оформи INFRA-HANDOFF (rule `infra-impact`).
+
+---
+
+## D. Cross-feature
 
 ### 1. Направление
 Кто **потребляет** — тот владеет портом. profile нужен флаг из start → порт `OnboardingReader` живёт в `profile/ports.py`, не в start.
 
 ### 2. Узкий порт — `ports.py` потребителя
-Возвращает **локальный** DTO потребителя, не тип чужой фичи:
+Контракт — в терминах потребителя, не тип чужой фичи:
+
 ```python
 class OnboardingReader(Protocol):
     async def is_onboarded(self, tg_id: int) -> bool: ...
@@ -82,6 +231,7 @@ class OnboardingReader(Protocol):
 
 ### 3. Адаптер — `adapters.py` потребителя
 ЕДИНСТВЕННОЕ (вместе с provider) место импорта другой фичи (import-linter `ignore_imports`):
+
 ```python
 from bot.features.start.usecase import StartUsecase
 
@@ -93,75 +243,41 @@ class OnboardingReaderAdapter:           # структурно удовлетв
 ```
 
 ### 4. Связать в provider.py
+
 ```python
 @provide
 def onboarding(self, start_uc: StartUsecase) -> OnboardingReader:
     return OnboardingReaderAdapter(start_uc)
-
-@provide
-def usecase(self, gw: BackendGateway, onb: OnboardingReader, log: Logger) -> ProfileUsecase:
-    return ProfileUsecase(gw, onb, log)
-```
-`StartUsecase` резолвится из контейнера (start.Provider зарегистрирован в `app.py`). Если чужого usecase-метода нет (`status`) — добавь его в фичу-источник.
-
----
-
-## C. Несколько именованных бэкендов
-
-Бот ходит в **несколько** независимых API (CRM, LLM-сервис, биллинг…). dishka ключует зависимости **по типу** — два `BackendClient` коллизят (второй `@provide` перетрёт первый). Различай клиентов **`NewType`-маркерами** (как `pgkit.ReplicaPool = NewType("ReplicaPool", object)` различает мастер/реплику), по одному провайдеру на клиент в `platform/backend/provider.py`. Каждому — свой `httpclient.Config` (свой `base_url` + свой `breaker_name`, иначе breaker-метрики разных API схлопнутся в один ряд).
-
-```python
-# platform/backend/provider.py
-from typing import NewType
-import httpx
-from pylibinfra.httpclient import BreakerConfig, Client, Config
-
-CrmClient = NewType("CrmClient", BackendClient)
-LlmClient = NewType("LlmClient", BackendClient)
-
-
-class BackendProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def crm(self, log: Logger) -> CrmClient:
-        cfg = Config(base_url=os.environ["CRM_BASE_URL"], breaker=BreakerConfig(name="crm"))
-        http = httpx.AsyncClient(base_url=cfg.base_url, timeout=cfg.timeout)
-        return CrmClient(BackendClient(Client(cfg, http), log))
-
-    @provide
-    def llm(self, log: Logger) -> LlmClient:
-        cfg = Config(base_url=os.environ["LLM_BASE_URL"], breaker=BreakerConfig(name="llm"))
-        http = httpx.AsyncClient(base_url=cfg.base_url, timeout=cfg.timeout)
-        return LlmClient(BackendClient(Client(cfg, http), log))
 ```
 
-Гейт фичи зависит от **маркера**, не от `BackendClient`: `def gateway(self, http: CrmClient) -> CrmGateway`. `breaker_name` → label `{"name":"crm"}` в `http_client_breaker_*` (env `HTTPCLIENT_BREAKER_NAME` задаёт дефолт одиночного клиента). Маркеры/URL/таймауты — `docs/stack/backends.md` → `de-template` wiring (`references/wiring.md`).
-
-> Новый `*_BASE_URL` — инфра-поверхность: оформи INFRA-HANDOFF (rule `infra-impact`).
+`StartUsecase` резолвится из контейнера (start.Provider зарегистрирован в `build_container`, `app.py`). Если чужого usecase-метода нет (`status`) — добавь его в фичу-источник.
 
 ---
 
 ## Тесты + верификация
 
-- usecase-тест через **фейк порта** (не транспорт): подставь fake-gateway/fake-reader, проверь поведение usecase.
-- backend-случай: `respx` мокает httpx на границе `BackendClient` (`tests/backend/`), либо `FakeBackendClient` (`tests/_fakes/backend.py`).
-- mypy strict проверит, что адаптер/gateway **структурно удовлетворяет** порту (Protocol) — частая ошибка ловится здесь.
+- pkg-клиент — `respx` в `tests/pkg/` (§A.4): пути/payload/Idempotency-Key/валидация контракта.
+- usecase — **фейк порта** (§B.4): policy-гейты без I/O, маппинг typed-ошибок в sentinel'ы.
+- mypy strict проверит, что pkg-клиент/адаптер **структурно удовлетворяет** порту (Protocol) — частая ошибка ловится здесь.
 
 ```bash
 make typecheck                # Protocol-совместимость
-make lint                     # import-linter: cross-feature только из adapters/provider
-uv run pytest tests/.../test_X.py -q
+make lint                     # import-linter: чистое ядро, pkg ↛ бот, cross-feature только adapters/provider
+uv run pytest tests/pkg/test_billing_api.py tests/unit/test_billing_usecase.py -q
 make check
 ```
 
-`feat(profile): add Balance backend gateway` / `feat(profile): add OnboardingReader port`
+`feat(billing): add balance api + gateway port` / `feat(profile): add OnboardingReader port`
 
 ## Anti-patterns
 
-- ❌ Возвращать из gateway/адаптера сырой JSON или тип чужой фичи (`*start.OnboardingStatus`). Маппь в локальный DTO.
+- ❌ Сырой `httpx` в фиче или в pkg-клиенте — только `pylibinfra.httpclient.ApiClient`.
+- ❌ Ловить/мапить typed-ошибки в getter/handler или в pkg-клиенте — единственная точка маппинга в sentinel'ы — usecase (исключение — идемпотентное смягчение 409/404 в клиенте).
+- ❌ Возвращать из pkg-клиента сырой JSON без `parse` — ломаный контракт всплывёт `KeyError`'ом в окне вместо `UnavailableError`.
+- ❌ Адаптер-прослойка между портом и pkg-клиентом «для чистоты» — Protocol совместим структурно, байнд в provider достаточно.
 - ❌ Широкий порт «на вырост» (10 методов «вдруг пригодится»). Сузь до нужного сейчас.
-- ❌ `httpx` напрямую в gateway — только через `platform/backend.BackendClient`.
 - ❌ Импорт другой фичи из `usecase.py`/`getters.py` — только `adapters.py`/`provider.py` (import-linter заблокирует).
+- ❌ Импорт `bot.features.*`/`aiogram` из pkg — контракт «pkg не знает про бот».
 - ❌ Двусторонняя cross-feature зависимость A↔B — сигнал кривых границ; подумай о третьей фиче или platform-glue (`platform/links.py`-паттерн).
-- ❌ Мутация без `Idempotency-Key` при риске двойного клика/ретрая httpclient.
+- ❌ Мутация без `Idempotency-Key` при риске двойного клика/ретрая httpclient; не-ASCII в ключе.
+- ❌ Новый бэкенд без записи в `BackendsConfig` — `ApiClients.get(имя)` упадёт на старте; без INFRA-HANDOFF на новый `*_BASE_URL` — разъедешься с прод-окружением.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from tests._fakes.cache import FakeCache
 
-from bot.features.start.gateway import CacheOnboardingStore
+from bot.features.start.infra.store import CacheOnboardingStore
 from bot.platform.links import LINK_TTL, chat_link_key, onboard_key
 
 pytestmark = pytest.mark.unit

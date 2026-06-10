@@ -1,9 +1,8 @@
-"""handlers.py — шаги wizard'а: накопление черновика в dialog_data + условная навигация.
+"""handlers.py — шаги wizard'а: распаковка ввода → usecase → персист черновика → экран.
 
-Каждый шаг читает черновик (BookingDraft.from_data), дописывает свой кусок, сохраняет обратно
-(to_data — JSON-примитивы). Multiselect читаем через find().get_checked(); валидация ввода —
-policy (Decision); ветвление шага адреса — policy.needs_address. Финал — submit черновика.
-Сообщения-подсказки plain-текстом (как profile.handlers), подписи окон — I18NFormat.
+Доменных решений здесь нет: валидация/ветвление — usecase (handlers не импортят policy);
+handler только мапит результат (address_required) и ошибку (views.error_text) на экран/текст.
+Формат-валидация («это число?») — type_factory виджета → on_error.
 """
 
 from __future__ import annotations
@@ -18,11 +17,19 @@ from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
-from bot.features.booking import policy, views
+from bot.features.booking import views
 from bot.features.booking.errors import BookingError
 from bot.features.booking.state import BookingDraft, BookingSG
 from bot.features.booking.usecase import BookingUsecase
 from bot.platform.identity import BotIdentity
+
+
+def _draft(manager: DialogManager) -> BookingDraft:
+    return BookingDraft.from_data(manager.dialog_data.get("draft"))
+
+
+def _save(manager: DialogManager, draft: BookingDraft) -> None:
+    manager.dialog_data["draft"] = draft.to_data()
 
 
 async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
@@ -30,26 +37,36 @@ async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
     manager.dialog_data["draft_id"] = uuid.uuid4().hex
 
 
-async def on_services_next(callback: CallbackQuery, button: Button, manager: DialogManager) -> None:
+@inject
+async def on_services_next(
+    callback: CallbackQuery,
+    button: Button,
+    manager: DialogManager,
+    *,
+    uc: FromDishka[BookingUsecase],
+) -> None:
     widget = manager.find("services")
     selected = list(widget.get_checked()) if widget is not None else []
-    draft = BookingDraft.from_data(manager.dialog_data.get("draft"))
-    draft.services = selected
-    manager.dialog_data["draft"] = draft.to_data()
+    _save(manager, uc.set_services(_draft(manager), selected))
     await manager.switch_to(BookingSG.DETAILS)
 
 
+@inject
 async def on_guests_success(
-    message: Message, widget: ManagedTextInput[int], manager: DialogManager, value: int
+    message: Message,
+    widget: ManagedTextInput[int],
+    manager: DialogManager,
+    value: int,
+    *,
+    uc: FromDishka[BookingUsecase],
 ) -> None:
-    if not policy.validate_guests(value).allowed:
-        await message.answer("Введите число гостей от 1 до 10.")
+    try:
+        step = uc.set_guests(_draft(manager), value)
+    except BookingError as exc:
+        await message.answer(views.error_text(exc))
         return
-    draft = BookingDraft.from_data(manager.dialog_data.get("draft"))
-    draft.guests = value
-    manager.dialog_data["draft"] = draft.to_data()
-    nxt = BookingSG.ADDRESS if policy.needs_address(draft.services) else BookingSG.CONFIRM
-    await manager.switch_to(nxt)
+    _save(manager, step.draft)
+    await manager.switch_to(BookingSG.ADDRESS if step.address_required else BookingSG.CONFIRM)
 
 
 async def on_guests_error(
@@ -58,15 +75,21 @@ async def on_guests_error(
     await message.answer("Это не число. Введите количество гостей цифрами.")
 
 
+@inject
 async def on_address_success(
-    message: Message, widget: ManagedTextInput[str], manager: DialogManager, value: str
+    message: Message,
+    widget: ManagedTextInput[str],
+    manager: DialogManager,
+    value: str,
+    *,
+    uc: FromDishka[BookingUsecase],
 ) -> None:
-    if not policy.validate_address(value).allowed:
-        await message.answer("Адрес слишком короткий, уточните.")
+    try:
+        draft = uc.set_address(_draft(manager), value)
+    except BookingError as exc:
+        await message.answer(views.error_text(exc))
         return
-    draft = BookingDraft.from_data(manager.dialog_data.get("draft"))
-    draft.address = value
-    manager.dialog_data["draft"] = draft.to_data()
+    _save(manager, draft)
     await manager.switch_to(BookingSG.CONFIRM)
 
 
@@ -79,10 +102,9 @@ async def on_submit(
     uc: FromDishka[BookingUsecase],
     identity: FromDishka[BotIdentity],
 ) -> None:
-    draft = BookingDraft.from_data(manager.dialog_data.get("draft"))
     idem = str(manager.dialog_data.get("draft_id") or uuid.uuid4().hex)
     try:
-        result = await uc.submit(identity.backend_user_id, draft, idem)
+        result = await uc.submit(identity.backend_user_id, _draft(manager), idem)
     except BookingError as exc:
         await callback.answer(views.error_text(exc), show_alert=True)
         return

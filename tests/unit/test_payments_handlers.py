@@ -20,47 +20,47 @@ import pytest
 import redis.asyncio as aioredis
 from aiogram import Bot
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
+from pylibinfra.httpclient import UnavailableError
 from pylibinfra.logkit import nop
-from pylibinfra.tgbotkit import Money
 from tests._fakes.redis import FakeRedis
 
 from bot.features.payments import errors, handlers
-from bot.features.payments.dto import Order
 from bot.features.payments.usecase import PaymentsUsecase
+from bot.pkg.http_client.internal.payments import Charge, Offer
 from bot.platform.identity import BotIdentity
 
 pytestmark = pytest.mark.unit
 
-_ORDER = Order(order_id="o1", title="Премиум", description="30д", price=Money(100))
+_OFFER = Offer(id="o1", title="Премиум", description="30д", amount=100)
 
 
 class _Gateway:
     def __init__(
         self,
-        order: Order | None = None,
+        offer: Offer | None = None,
         fulfill_error: Exception | None = None,
         payer: int | None = None,
     ) -> None:
-        self._order = order
+        self._offer = offer
         self._fulfill_error = fulfill_error
         self._payer = payer
         self.fulfilled: list[tuple[str, str]] = []
         self.revoked: list[tuple[str, str]] = []
 
-    async def get_offer(self, offer_id: str) -> Order:
-        assert self._order is not None
-        return self._order
+    async def get_offer(self, offer_id: str) -> Offer:
+        assert self._offer is not None
+        return self._offer
 
-    async def fulfill(self, order_id: str, charge_id: str) -> None:
+    async def fulfill_order(self, order_id: str, charge_id: str) -> None:
         if self._fulfill_error is not None:
             raise self._fulfill_error
         self.fulfilled.append((order_id, charge_id))
 
-    async def revoke(self, order_id: str, charge_id: str) -> None:
+    async def revoke_order(self, order_id: str, charge_id: str) -> None:
         self.revoked.append((order_id, charge_id))
 
-    async def payer_of(self, charge_id: str) -> int | None:
-        return self._payer
+    async def find_charge(self, charge_id: str) -> Charge | None:
+        return Charge(user_id=self._payer) if self._payer is not None else None
 
 
 class _FakeBot:
@@ -142,7 +142,7 @@ class _Callback:
 
 async def test_on_buy_sends_invoice_and_answers() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_ORDER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, FakeRedis())
     cb = _Callback(SimpleNamespace(chat=SimpleNamespace(id=555)))
     async with container() as rc:
         manager = SimpleNamespace(middleware_data={"dishka_container": rc})
@@ -155,7 +155,7 @@ async def test_on_buy_sends_invoice_and_answers() -> None:
 
 async def test_on_buy_without_message_skips_invoice_but_answers() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_ORDER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, FakeRedis())
     cb = _Callback(message=None)  # инлайн-сообщение могло быть удалено
     async with container() as rc:
         manager = SimpleNamespace(middleware_data={"dishka_container": rc})
@@ -176,20 +176,20 @@ async def _pre_checkout(gateway: _Gateway, *, amount: int, currency: str) -> lis
 
 
 async def test_on_pre_checkout_confirms_matching_amount() -> None:
-    assert await _pre_checkout(_Gateway(_ORDER), amount=100, currency="XTR") == [("pq1", True)]
+    assert await _pre_checkout(_Gateway(_OFFER), amount=100, currency="XTR") == [("pq1", True)]
 
 
 async def test_on_pre_checkout_rejects_wrong_amount() -> None:
     # клиент прислал заниженную сумму — не доверяем, сверка с бэкендом → отказ
-    assert await _pre_checkout(_Gateway(_ORDER), amount=50, currency="XTR") == [("pq1", False)]
+    assert await _pre_checkout(_Gateway(_OFFER), amount=50, currency="XTR") == [("pq1", False)]
 
 
 async def test_on_pre_checkout_fails_closed_on_backend_error() -> None:
     class _Down:
-        async def get_offer(self, offer_id: str) -> Order:
-            raise errors.PaymentError("down")
+        async def get_offer(self, offer_id: str) -> Offer:
+            raise UnavailableError("down")
 
-        async def fulfill(self, order_id: str, charge_id: str) -> None:
+        async def fulfill_order(self, order_id: str, charge_id: str) -> None:
             pass
 
     assert await _pre_checkout(_Down(), amount=100, currency="XTR") == [("pq1", False)]  # type: ignore[arg-type]
@@ -210,13 +210,13 @@ async def _complete(gateway: _Gateway, message: Any, redis: FakeRedis) -> None:
 
 async def test_on_successful_payment_no_sp_returns() -> None:
     # message без successful_payment — ранний выход, выдачи нет
-    gw = _Gateway(_ORDER)
+    gw = _Gateway(_OFFER)
     await _complete(gw, _payment_message(None), FakeRedis())
     assert gw.fulfilled == []
 
 
 async def test_on_successful_payment_fulfills_and_commits() -> None:
-    gw = _Gateway(_ORDER)
+    gw = _Gateway(_OFFER)
     redis = FakeRedis()
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
     await _complete(gw, _payment_message(sp), redis)
@@ -225,7 +225,7 @@ async def test_on_successful_payment_fulfills_and_commits() -> None:
 
 
 async def test_on_successful_payment_duplicate_skips_fulfill() -> None:
-    gw = _Gateway(_ORDER)
+    gw = _Gateway(_OFFER)
     redis = FakeRedis()
     redis.store["tg:charge:charge-1"] = b"1"  # ключ уже занят → reserve вернёт дубликат
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
@@ -234,7 +234,7 @@ async def test_on_successful_payment_duplicate_skips_fulfill() -> None:
 
 
 async def test_on_successful_payment_releases_on_failure() -> None:
-    gw = _Gateway(_ORDER, fulfill_error=errors.PaymentError("backend down"))
+    gw = _Gateway(_OFFER, fulfill_error=UnavailableError("backend down"))
     redis = FakeRedis()
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
     with pytest.raises(errors.PaymentError):
@@ -245,7 +245,7 @@ async def test_on_successful_payment_releases_on_failure() -> None:
 
 async def test_on_subscribe_builds_link_and_sends() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_ORDER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, FakeRedis())
     msg = _Message()
     cb = _Callback(msg)
     async with container() as rc:
@@ -262,7 +262,7 @@ def _refunded_message(rp: Any) -> Any:
 
 
 async def test_on_refunded_payment_reverses_and_commits() -> None:
-    gw = _Gateway(_ORDER)
+    gw = _Gateway(_OFFER)
     redis = FakeRedis()
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
     container = _container(gw, _FakeBot(), redis)
@@ -274,7 +274,7 @@ async def test_on_refunded_payment_reverses_and_commits() -> None:
 
 
 async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
-    gw = _Gateway(_ORDER)
+    gw = _Gateway(_OFFER)
     redis = FakeRedis()
     redis.store["tg:refund:ch-1"] = b"1"  # откат уже выполнен/в процессе
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
@@ -287,7 +287,7 @@ async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
 
 async def test_on_refund_command_admin_refunds_payer() -> None:
     bot = _FakeBot()
-    gw = _Gateway(_ORDER, payer=42)
+    gw = _Gateway(_OFFER, payer=42)
     container = _container(gw, bot, FakeRedis(), role="admin")
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
@@ -299,7 +299,7 @@ async def test_on_refund_command_admin_refunds_payer() -> None:
 
 async def test_on_refund_command_denies_non_admin() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_ORDER, payer=42), bot, FakeRedis(), role="user")
+    container = _container(_Gateway(_OFFER, payer=42), bot, FakeRedis(), role="user")
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
     async with container() as rc:
@@ -311,7 +311,7 @@ async def test_on_refund_command_denies_non_admin() -> None:
 
 async def test_on_refund_command_unknown_payer() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_ORDER, payer=None), bot, FakeRedis(), role="admin")
+    container = _container(_Gateway(_OFFER, payer=None), bot, FakeRedis(), role="admin")
     msg = _Message()
     cmd = SimpleNamespace(args="ghost")
     async with container() as rc:

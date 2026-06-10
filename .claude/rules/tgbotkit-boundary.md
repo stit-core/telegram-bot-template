@@ -1,9 +1,8 @@
 ---
 name: tgbotkit-boundary
-description: Инфра не пишется в шаблоне — только бизнес и регистрация в точки расширения tgbotkit; новая инфра-механика → PR в pylibinfra/tgbotkit через infra-handoff. Terse; «как и почему» — design/ARCHITECTURE.md §1/§4/§16. Грузится при правке app.py/extensions.py/platform/.
+description: Инфра не пишется в шаблоне — только бизнес и регистрация в точки расширения tgbotkit; новая инфра-механика → PR в pylibinfra/tgbotkit через infra-handoff. Terse; «как и почему» — design/ARCHITECTURE.md §1/§4/§16. Грузится при правке app.py/platform/.
 paths:
   - "src/bot/app.py"
-  - "src/bot/extensions.py"
   - "src/bot/platform/**"
 ---
 
@@ -16,17 +15,19 @@ paths:
 
 ## Что шаблон делает здесь (и только это)
 
-- **`app.py`** — composition root: список провайдеров → `make_async_container` → `BotRunner.run()`.
-  Никакой проводки рантайма. Порядок провайдеров значим: `BotProvider` даёт **дефолты** (Logger=nop,
-  bundles, `ErrorUX`, `Optional*`), поэтому `LogkitProvider` и `ExtensionProvider` идут **после**
-  него (last-wins). `AiogramProvider` обязателен (REQUEST-контекст для identity).
-- **`extensions.py`** (`ExtensionProvider`) — наполняет точки расширения kit'а бизнесом:
+- **`app.py`** — единый composition root: `ExtensionProvider` + `build_container` + `run()`
+  (`make_async_container` → `BotRunner.run()`). Никакой проводки рантайма. Порядок провайдеров
+  значим: `BotProvider` даёт **дефолты** (Logger=nop, bundles, `ErrorUX`, `Optional*`), поэтому
+  `LogkitProvider` и `ExtensionProvider` идут **после** него (last-wins). `AiogramProvider`
+  обязателен (REQUEST-контекст для identity).
+- **`ExtensionProvider`** (в `app.py`) — наполняет точки расширения kit'а бизнесом:
   `RouterBundle` (диалоги), `CommandBundle` (`CommandSpec` команд/`pre_checkout`/`successful_payment`),
   `NotifierBundle`, `ErrorUX`, `OptionalLocaleResolver`, `OptionalStreamBus`. **Декларируешь, что
   подключить — не как это работает.**
-- **`platform/`** — общее **бизнес-проектное**: `identity/` (Update→`BotIdentity`), `backend/`
-  (фасад над httpclient + маппинг ошибок), `dialogs/` (`states.py`, `common.py`, `errors.py:ErrorUX`),
-  `webapp/` (валидатор initData). Это бизнес-glue, **не** инфра-проводка.
+- **`platform/`** — общее **бизнес-проектное**: `identity/` (Update→`BotIdentity`), `dialogs/`
+  (`states.py`, `common.py`, `errors.py:ErrorUX`), `webapp/` (валидатор initData), `links.py`.
+  Это бизнес-glue, **не** инфра-проводка. Клиенты API — не сюда: `pkg/http_client/`
+  (rule `feature-architecture`).
 
 ## Запрещено
 

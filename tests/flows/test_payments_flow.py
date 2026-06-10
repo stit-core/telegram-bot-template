@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from aiogram_dialog.test_tools.keyboard import InlineButtonTextLocator
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
-from tests._fakes.backend import FakeBackendClient
+from tests._fakes.backend import FakeApiClient
 from tests._fakes.harness import build_dp, make_container
 
 from bot.features import payments, start
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.dialog
 
 async def test_offer_window_shows_price() -> None:
     mm = MockMessageManager()
-    backend = FakeBackendClient(
+    backend = FakeApiClient(
         {
             "id": "premium-30d",
             "title": "Премиум",

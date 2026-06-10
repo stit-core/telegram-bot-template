@@ -4,7 +4,8 @@
 2.6 + `dishka` поверх `pylibinfra[tgbotkit]`. Вся инфра бота (Bot/Dispatcher/RedisStorage,
 middleware, webhook/polling runner, dishka-setup, error-UX, метрики, generic-механика
 i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не здесь. В шаблоне — фичи
-(диалоги/usecase/gateway/policy/state), контент (`.ftl`), регистрация в точки расширения kit'а.
+(диалоги/usecase/ports/policy/state + `infra/`-реализации портов), клиенты API
+(`pkg/http_client`), контент (`.ftl`), регистрация в точки расширения kit'а.
 
 Этот файл — **ядро (always-on) + роутер**. Детали — в `docs/`, контекстные инварианты — в
 `.claude/rules/` (path-scoped, грузятся на matching-файлах), процедуры — в `.claude/skills/`.
@@ -56,9 +57,11 @@ i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не зд�
   `ASYNC`, `TID`, `T20` (запрет `print`), banned-api на `logging` — логи **только** через
   `pylibinfra.logkit.Logger`.
 - **mypy strict** + pydantic-плагин: полная типизация; Protocol-порты проверяются структурно.
-- **import-linter** (`importlinter.toml`, 3 контракта): слоистость внутри фичи (DIP);
+- **import-linter** (`importlinter.toml`, 5 контрактов): слоистость внутри фичи (DIP);
   независимость фич (cross-feature только через `adapters.py`/`provider.py`); чистое ядро
-  (`usecase`/`policy`/`state`/`dto`) не импортит `httpx`/`aiogram`/`redis`/`gateway` напрямую.
+  (`usecase`/`policy`/`state`/`dto`) не импортит `httpx`/`aiogram`/`redis`/свой `infra/`
+  напрямую (wire-модели pkg и `pylibinfra.httpclient` ядру разрешены); `handlers`/`getters`
+  не зовут `policy` (доменные решения — в usecase); `pkg` не знает про features/platform/aiogram.
 - Комментарии — только WHY (rule `comments`). `dialog_data`/`start_data` — только JSON-примитивы.
 - **Не городить велосипеды**: любой переиспользуемый/инфра-примитив (middleware, runner, новый
   вид рантайма, generic-механика) → **PR в `pylibinfra/tgbotkit`** через `/infra-handoff`, не
@@ -72,7 +75,8 @@ i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не зд�
 
 ## Границы
 
-- **Делать:** фичи (гексагон), контент (`.ftl`), регистрация в `extensions.py`, тесты, доки.
+- **Делать:** фичи (гексагон), pkg-клиенты, контент (`.ftl`), регистрация в `app.py`
+  (`ExtensionProvider`), тесты, доки.
 - **Спросить:** новые env/секреты/NATS-subject/webhook (INFRA-HANDOFF); новая инфра-механика
   (это PR в tgbotkit, не правка шаблона); удаление/переименование живого `State` (state-migration).
 - **Никогда:** инфра-проводка в шаблоне; `--no-verify`; коммит `.env`/`*.key`; логи через

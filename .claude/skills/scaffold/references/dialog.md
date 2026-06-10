@@ -35,11 +35,11 @@ class ProfileSettings(StatesGroup):   # отдельная группа, не р
 
 ## 3. Файлы
 
-Новый диалог обычно не требует нового usecase/gateway — переиспользует существующие фичи. Минимум:
+Новый диалог обычно не требует нового usecase/порта — переиспользует существующие фичи. Минимум:
 
 - расширить `dialogs.py` фичи новым `Dialog` (или завести `dialogs_settings.py`, если файл разрастается);
 - добавить getters/handlers для его окон (в существующие `getters.py`/`handlers.py` фичи или отдельные модули — слой тот же);
-- если нужен новый usecase-метод — добавь в существующий `usecase.py`, новый порт — в `ports.py`+`gateway.py`+`provider.py` (см. `backend-port.md`).
+- если нужен новый usecase-метод — добавь в существующий `usecase.py`; новый порт/HTTP-вызов — `ports.py`+pkg-клиент+`provider.py` (см. `backend-port.md`).
 
 ```python
 # dialogs.py (дополнение)
@@ -71,10 +71,11 @@ profile_settings_dialog = Dialog(settings_menu)   # своя StatesGroup
 Новый `Dialog` — это `Router`, его надо отдать kit'у:
 
 - экспортируй из `__init__.py` фичи: либо отдельным именем (`settings_dialog`), либо включи в кортеж, если фасад уже отдаёт несколько;
-- в `src/bot/extensions.py` (`ExtensionProvider.routers`) добавь `profile.settings_dialog` в `RouterBundle`. **Каждый `Dialog` регистрируется отдельно** — kit не разворачивает вложенность сам.
+- в `src/bot/app.py` (`ExtensionProvider.routers`) добавь `profile.settings_dialog` в `RouterBundle`. **Каждый `Dialog` регистрируется отдельно** — kit не разворачивает вложенность сам.
 
 ```python
-# extensions.py (фрагмент)
+# app.py (фрагмент ExtensionProvider)
+@provide
 def routers(self) -> RouterBundle:
     return (start.dialog, profile.dialog, profile.settings_dialog, payments.dialog, lang.dialog)
 ```
@@ -92,5 +93,5 @@ def routers(self) -> RouterBundle:
 
 - ❌ Два `Dialog` на одну `StatesGroup` — `setup_dialogs` упадёт. Новый диалог = новая группа.
 - ❌ `LaunchMode.ROOT` на втором диалоге — ROOT один на проект.
-- ❌ Забыть зарегистрировать новый `Dialog` в `RouterBundle` (`extensions.py`) — апдейты его окон не дойдут.
+- ❌ Забыть зарегистрировать новый `Dialog` в `RouterBundle` (`ExtensionProvider` в `app.py`) — апдейты его окон не дойдут.
 - ❌ `manager.start(..., mode=RESET_STACK)` для вложенного флоу, из которого надо вернуться — сотрёт стек, `Cancel` будет некуда вести.

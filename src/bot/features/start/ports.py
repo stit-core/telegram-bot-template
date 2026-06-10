@@ -1,7 +1,7 @@
 """ports.py — порты фичи start (Protocol). PURE.
 
 OnboardingStore — узкий порт хранилища флага онбординга и link'а tg→chat (для
-notifications). Реализация — над cachekit (gateway.py), связывается в provider.py (DIP).
+notifications). Реализация — над cachekit (infra/store.py), связывается в provider.py (DIP).
 """
 
 from __future__ import annotations

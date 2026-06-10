@@ -1,8 +1,8 @@
 """Тест-харнес: сборка dishka-контейнера с фейками инфры + Dispatcher с привязкой диалогов.
 
 Повторяет проводку рантайма kit'а в миниатюре: AiogramProvider (REQUEST-контекст), фейк
-Cache/Logger/AppConfig/BackendClient, IdentityProvider + переданные фиче-провайдеры; затем
-bind_dialogs (setup_dishka + setup_dialogs с MockMessageManager).
+Cache/Logger/AppConfig + pkg-клиенты поверх FakeApiClient, IdentityProvider + переданные
+фиче-провайдеры; затем bind_dialogs (setup_dishka + setup_dialogs с MockMessageManager).
 """
 
 from __future__ import annotations
@@ -18,16 +18,18 @@ from pylibinfra.testkit.bottest import JsonMemoryStorage, MockMessageManager, bi
 from pylibinfra.tgbotkit import CommandSpec
 
 from bot.config import AppConfig
-from bot.platform.backend import BackendClient
+from bot.pkg.http_client.internal.booking import BookingAPI
+from bot.pkg.http_client.internal.payments import PaymentsAPI
+from bot.pkg.http_client.internal.profile import ProfileAPI
 from bot.platform.identity import IdentityProvider
-from tests._fakes.backend import FakeBackendClient
+from tests._fakes.backend import FakeApiClient
 from tests._fakes.cache import FakeCache
 
 
 class FakesProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self, cache: Cache, app: AppConfig, backend: BackendClient) -> None:
+    def __init__(self, cache: Cache, app: AppConfig, backend: FakeApiClient) -> None:
         super().__init__()
         self._cache = cache
         self._app = app
@@ -45,22 +47,32 @@ class FakesProvider(Provider):
     def app_config(self) -> AppConfig:
         return self._app
 
+    # pkg-клиенты поверх фейкового транспорта: фичи получают реальные API-классы,
+    # I/O подменён in-memory заглушкой (мокаем границу бэкенда, не httpx)
     @provide
-    def backend(self) -> BackendClient:
-        return self._backend
+    def profile_api(self) -> ProfileAPI:
+        return ProfileAPI(self._backend)  # type: ignore[arg-type]
+
+    @provide
+    def booking_api(self) -> BookingAPI:
+        return BookingAPI(self._backend)  # type: ignore[arg-type]
+
+    @provide
+    def payments_api(self) -> PaymentsAPI:
+        return PaymentsAPI(self._backend)  # type: ignore[arg-type]
 
 
 def make_container(
     *feature_providers: Provider,
     cache: Cache | None = None,
     app: AppConfig | None = None,
-    backend: BackendClient | None = None,
+    backend: FakeApiClient | None = None,
 ) -> AsyncContainer:
     return make_async_container(
         FakesProvider(
             cache or FakeCache(),
             app or AppConfig(),
-            backend or FakeBackendClient(),  # type: ignore[arg-type]
+            backend or FakeApiClient(),
         ),
         AiogramProvider(),
         IdentityProvider(),

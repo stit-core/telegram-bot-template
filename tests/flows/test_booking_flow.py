@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from aiogram_dialog.test_tools.keyboard import InlineButtonDataLocator, InlineButtonTextLocator
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
-from tests._fakes.backend import FakeBackendClient
+from tests._fakes.backend import FakeApiClient
 from tests._fakes.harness import build_dp, make_container
 
 from bot.features import booking, start
@@ -19,7 +19,7 @@ from bot.features import booking, start
 pytestmark = pytest.mark.dialog
 
 
-def _client(backend: FakeBackendClient) -> tuple[BotClient, MockMessageManager, object]:
+def _client(backend: FakeApiClient) -> tuple[BotClient, MockMessageManager, object]:
     mm = MockMessageManager()
     container = make_container(start.Provider(), booking.Provider(), backend=backend)
     dp = build_dp(container, mm, routers=[start.dialog, booking.dialog], commands=[start.cmd_spec])
@@ -38,7 +38,7 @@ async def _open_services(client: BotClient, mm: MockMessageManager) -> object:
 
 
 async def test_wizard_with_delivery_asks_address_then_submits() -> None:
-    backend = FakeBackendClient({"confirmation_id": "BK-7"})
+    backend = FakeApiClient({"confirmation_id": "BK-7"})
     client, mm, container = _client(backend)
     try:
         services = await _open_services(client, mm)
@@ -69,7 +69,7 @@ async def test_wizard_with_delivery_asks_address_then_submits() -> None:
 
 
 async def test_wizard_without_delivery_skips_address() -> None:
-    backend = FakeBackendClient({"confirmation_id": "BK-8"})
+    backend = FakeApiClient({"confirmation_id": "BK-8"})
     client, mm, container = _client(backend)
     try:
         services = await _open_services(client, mm)

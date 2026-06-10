@@ -1,13 +1,15 @@
 # Границы гексагона — аналог depguard у go-template. Запускается `make lint`
-# (lint-imports --config importlinter.toml). Три контракта из FEATURE-BLUEPRINT §6.
+# (lint-imports --config importlinter.toml). Контракты: слои фичи, независимость фич,
+# чистое ядро, handlers/getters без policy, pkg не знает про бот.
 [tool.importlinter]
 root_package = "bot"
 include_external_packages = true
 
-# 1. Слоистость ВНУТРИ фичи (DIP): presentation → views → usecase → policy → ports → dto/state.
+# 1. Слоистость ВНУТРИ фичи (DIP): presentation → views → usecase → policy → ports → dto → state.
 #    Стрелки только «вниз». dialogs|getters|handlers — независимы между собой (один слой).
 #    Сокращённые фичи (start/lang) не имеют views/ports/dto → (скобки) = опциональный слой.
 #    notifications — не диалог-гексагон (NATS-router+deliver), в этот контракт не входит.
+#    infra/ (реализации портов над не-HTTP) в слоях не участвует: его импортирует только provider.
 [[tool.importlinter.contracts]]
 name = "Слои внутри фичи (DIP, стрелка внутрь)"
 type = "layers"
@@ -20,7 +22,7 @@ containers = [
 ]
 # dialogs — верхний слой (окна ссылаются на getters/handlers); getters|handlers —
 # независимы (getter=данные, handler=реакции, друг друга не импортят); ниже views→
-# usecase→policy→ports→dto/state. (скобки) = опциональный слой (нет в сокращённых фичах).
+# usecase→policy→ports→dto→state. (скобки) = опциональный слой (нет в сокращённых фичах).
 layers = [
     "dialogs",
     "(getters) | (handlers)",
@@ -28,7 +30,8 @@ layers = [
     "usecase",
     "(policy)",
     "(ports)",
-    "(dto) | state",
+    "(dto)",
+    "state",
 ]
 
 # 2. Фичи независимы друг от друга — кроме cross-feature через adapters.py / provider.py.
@@ -50,13 +53,13 @@ ignore_imports = [
     "bot.features.*.provider -> bot.features.*.*",
 ]
 
-# 3. Чистое ядро (usecase/policy/state/dto) не знает про инфра-детали и про свой же gateway.
-#    allow_indirect_imports: запрещаем только ПРЯМЫЕ импорты инфры. Ядро legально тянет
-#    aiogram.StatesGroup через центральный каталог platform/dialogs/states (это архитектура,
-#    не утечка) — косвенная цепочка туда не считается нарушением; прямой `import redis`/
-#    `from aiogram_dialog ...`/`import httpx`/импорт своего gateway — считается.
+# 3. Чистое ядро (usecase/policy/state/dto) не знает про инфра-детали и про infra/ своей фичи.
+#    Wire-модели и typed-ошибки pkg-клиентов (bot.pkg.*, pylibinfra.httpclient) ядру РАЗРЕШЕНЫ —
+#    это «язык» портов; запрещён сырой транспорт (httpx) и presentation (aiogram).
+#    allow_indirect_imports: запрещаем только ПРЯМЫЕ импорты (aiogram.StatesGroup транзитом
+#    через platform/dialogs/states — архитектура, не утечка).
 [[tool.importlinter.contracts]]
-name = "Чистое ядро не импортит инфру напрямую (httpx/aiogram/redis/gateway)"
+name = "Чистое ядро не импортит инфру напрямую (httpx/aiogram/redis/infra)"
 type = "forbidden"
 allow_indirect_imports = "true"
 source_modules = [
@@ -70,5 +73,35 @@ forbidden_modules = [
     "aiogram",
     "aiogram_dialog",
     "redis",
-    "bot.features.*.gateway",
+    "bot.features.*.infra",
+]
+
+# 4. Доменные решения — в usecase: handlers/getters НЕ зовут policy напрямую (валидация,
+#    ветвление флоу приходят результатом usecase; handler только мапит их на экран/текст).
+#    allow_indirect_imports: цепочка handlers → usecase → policy легальна.
+[[tool.importlinter.contracts]]
+name = "Handlers/getters без policy (доменные решения — в usecase)"
+type = "forbidden"
+allow_indirect_imports = "true"
+source_modules = [
+    "bot.features.*.handlers",
+    "bot.features.*.getters",
+]
+forbidden_modules = [
+    "bot.features.*.policy",
+]
+
+# 5. pkg — переиспользуемые клиенты, не бизнес: не знает про фичи/платформу/aiogram.
+[[tool.importlinter.contracts]]
+name = "pkg не знает про бот (features/platform/aiogram)"
+type = "forbidden"
+allow_indirect_imports = "true"
+source_modules = [
+    "bot.pkg",
+]
+forbidden_modules = [
+    "bot.features",
+    "bot.platform",
+    "aiogram",
+    "aiogram_dialog",
 ]

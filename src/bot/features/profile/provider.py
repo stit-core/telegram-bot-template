@@ -1,5 +1,5 @@
 """provider.py — dishka Provider фичи profile. Здесь (и только здесь) порты связываются
-с реализациями (DIP): gateway → http-адаптер, onboarding → cross-feature адаптер.
+с реализациями (DIP): gateway → pkg-клиент (структурно), onboarding → cross-feature адаптер.
 
 Scope.REQUEST: усекается на каждый Update. usecase получает оба порта + logkit.Logger.
 """
@@ -10,19 +10,18 @@ from dishka import Provider, Scope, provide
 from pylibinfra.logkit import Logger
 
 from bot.features.profile.adapters import OnboardingReaderAdapter
-from bot.features.profile.gateway import HttpProfileGateway
 from bot.features.profile.ports import BackendGateway, OnboardingReader
 from bot.features.profile.usecase import ProfileUsecase
 from bot.features.start.usecase import StartUsecase
-from bot.platform.backend import BackendClient
+from bot.pkg.http_client.internal.profile import ProfileAPI
 
 
 class ProfileProvider(Provider):
     scope = Scope.REQUEST
 
     @provide
-    def gateway(self, http: BackendClient) -> BackendGateway:
-        return HttpProfileGateway(http)
+    def gateway(self, api: ProfileAPI) -> BackendGateway:
+        return api
 
     @provide
     def onboarding(self, start_uc: StartUsecase) -> OnboardingReader:

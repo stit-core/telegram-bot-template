@@ -1,4 +1,4 @@
-"""gateway.py — реализация OnboardingStore поверх cachekit. Единственный I/O фичи start.
+"""store.py — реализация OnboardingStore поверх cachekit. Единственный I/O фичи start.
 
 Структурно удовлетворяет ports.OnboardingStore (mypy проверит), связывается в provider.py.
 Боту не нужен Postgres: флаг онбординга и link tg→chat живут в Redis (cachekit).

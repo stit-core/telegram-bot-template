@@ -29,7 +29,8 @@ paths:
 
 ## getter — только данные
 
-- `getter(**kwargs)` async, дёргает **usecase** (не gateway/httpx). `**kwargs` ОБЯЗАТЕЛЕН — getter
+- `getter(**kwargs)` async, дёргает **usecase** (не порт/pkg-клиент/httpx) и **не импортит
+  `policy`** (контракт import-linter). `**kwargs` ОБЯЗАТЕЛЕН — getter
   зовут со всем `middleware_data`; не перечисляй reserved-ключи руками.
 - DI — `@inject` из **`dishka.integrations.aiogram_dialog`** (getter не event-handler диспетчера),
   зависимости через `FromDishka[...]`. Возврат — `dict` со **всеми** ключами, что читает `Format`
@@ -41,6 +42,13 @@ paths:
 
 - `on_click`/`on_success`/`on_error`: дёргают usecase (мутации), данные берут из аргументов виджета
   (`value`), **не** из getter. Навигация — `manager.switch_to`/`next`/`done`/`start`.
+- **Handler не принимает доменных решений** и не импортит `policy` (контракт «Handlers/getters
+  без policy»). **Все** шаги wizard'а — методы usecase (включая passthrough вроде
+  `set_services`); usecase возвращает результат-данные (`set_guests → GuestsStep(draft,
+  address_required)`), handler мапит их на экран (`switch_to`) и ошибки на текст
+  (`views.error_text`). usecase никогда не трогает `DialogManager`/экраны.
+- **Формат-валидация ввода** («это число?») — `type_factory` виджета → `on_error`; доменная
+  валидация («не больше N гостей») — policy внутри usecase → доменная ошибка.
 - Dialog-level хендлеры — `@inject` из **`dishka.integrations.aiogram_dialog`**.
 - Dispatcher-level хендлеры (команды, `pre_checkout`, `successful_payment`) — `@inject` из
   **`dishka.integrations.aiogram`**; отдаются в `CommandBundle` через `CommandSpec`, не в `Dialog`.
@@ -56,4 +64,5 @@ paths:
 - В `dialog_data`/`widget_data`/`start_data` — только JSON-примитивы (rule `storage-serialization`).
 - Новый/изменённый `State` → rule `state-lifecycle` (deprecation, не удаление живых).
 - Кнопки в flow-тестах локаются по `callback_data`/тексту (rule `tests-pipeline`).
-- `make check` зелёный (import-linter держит `dialogs → getters|handlers → views → usecase`).
+- `make check` зелёный (import-linter держит `dialogs → getters|handlers → views → usecase`
+  и запрет `handlers`/`getters` → `policy`).

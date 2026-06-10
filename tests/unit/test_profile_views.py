@@ -9,18 +9,18 @@ from __future__ import annotations
 import pytest
 
 from bot.features.profile import errors, views
-from bot.features.profile.dto import ProfileView
+from bot.pkg.http_client.internal.profile import User
 
 pytestmark = pytest.mark.unit
 
 
 def test_to_window_premium_badge() -> None:
-    data = views.to_window(ProfileView(name="Алиса", email="a@x.io", is_premium=True))
+    data = views.to_window(User(name="Алиса", email="a@x.io", premium=True))
     assert data == {"name": "Алиса", "email": "a@x.io", "badge": "⭐ premium"}
 
 
 def test_to_window_no_badge_when_not_premium() -> None:
-    data = views.to_window(ProfileView(name="Боб", email="b@x.io", is_premium=False))
+    data = views.to_window(User(name="Боб", email="b@x.io", premium=False))
     assert data["badge"] == ""
 
 

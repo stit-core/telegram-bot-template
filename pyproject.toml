@@ -23,18 +23,17 @@ dev = [
     "pytest>=9,<10",
     "pytest-asyncio>=1.4,<2",
     "pytest-cov>=7.1,<8",
-    "respx>=0.22",            # мок httpx для backend-тестов (мокаем порт/транспорт-границу)
+    "respx>=0.22",            # мок httpx для тестов pkg-клиентов (tests/pkg, транспорт-граница)
     "pylibinfra[testkit]",   # testcontainers redis/nats + bottest (flow-тесты диалогов)
 ]
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на конкретную ревизию инфры, как go-сервис на go.mod-версию.
-# СЕЙЧАС: коммит 5f2d124 — tgbotkit (reserve/commit-дедуп, recovery→dp.errors, JetStream
-# failure-path/drain, GCRA rate-limit, SecretStr, BOT_STATE_TTL, locale-канал Delivery,
-# bounded i18n-кэш+pt-br→pt, payments-adv: Money/subscription/refund/prices) + httpclient
-# (breaker_name per-API) + cachekit (атомарная tag-invalidation). Свапнуть на релиз-тег.
+# СЕЙЧАС: коммит b713602 — httpclient.ApiClient (typed JSON-слой: NotFound/Conflict/
+# Unavailable, Idempotency-Key) + именованные бэкенды (BackendsConfig/ApiClients) поверх
+# полного tgbotkit-стека. Свапнуть на релиз-тег.
 [tool.uv.sources]
-pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "5f2d124" }
+pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "b713602" }
 
 [build-system]
 requires = ["hatchling"]
@@ -70,7 +69,7 @@ select = [
 ignore = [
     "S101",                      # assert — допустим в защитных проверках вне тестов
     "RUF001", "RUF002", "RUF003",  # кириллица в комментариях (как в pylibinfra) — не ошибка
-    "N818",                      # sentinel-ошибки в Go-стиле (ProfileNotFound, BackendUnavailable) — без суффикса Error
+    "N818",                      # sentinel-ошибки в Go-стиле (ProfileNotFound, BookingUnavailable) — без суффикса Error
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -111,7 +110,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]  # чтобы tests._fakes импортировался из flow/backend-тестов
+pythonpath = ["."]  # чтобы tests._fakes импортировался из flow/pkg-тестов
 markers = [
     "unit: чистые юнит-тесты (policy/views/валидаторы)",
     "dialog: flow-тесты диалогов через BotClient (без Telegram)",

@@ -1,7 +1,7 @@
 """dialogs.py — wizard заказа: 4 окна с условным шагом адреса. Presentation как разметка.
 
 SERVICES (Multiselect опций) → DETAILS (валидируемое число гостей) → [ADDRESS, если выбрана
-доставка] → CONFIRM (итог + submit). Ветвление шага адреса делает handler по policy.needs_address.
+доставка] → CONFIRM (итог + submit). Шаг адреса решает usecase (GuestsStep.address_required).
 Навигация назад — SwitchTo на явные состояния (а не Back), чтобы не упереться в пропущенное окно.
 """
 

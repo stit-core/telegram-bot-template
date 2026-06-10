@@ -27,7 +27,7 @@ description: Red-арм cockpit'а — структурированный раз
 
 | Тип | Признаки | Где смотреть |
 |---|---|---|
-| **import-linter** | `Contracts: ... BROKEN`, нарушение «Слои внутри фичи» / «Независимость фич» / «Чистое ядро» | `uv run lint-imports --config importlinter.toml` — какой контракт и какая стрелка |
+| **import-linter** | `Contracts: ... BROKEN`, нарушение «Слои внутри фичи» / «Независимость фич» / «Чистое ядро» / «Handlers/getters без policy» / «pkg не знает про бот» | `uv run lint-imports --config importlinter.toml` — какой контракт и какая стрелка |
 | **ruff** | `[ruff]`-коды (`T20`, `S`, `TID252`, `ASYNC`, `PT`) | `make lint` / `uv run ruff check .` — топ по коду |
 | **mypy** | `error: ... [code]`, чаще Protocol-несовместимость адаптера и порта | `make typecheck` / `uv run mypy src` |
 | **Unit test** | `FAILED tests/unit/... assert` | `uv run pytest tests/unit/test_X.py -q` |
@@ -61,8 +61,8 @@ uv run pytest -k "collision" -q          # startup-smoke композиции
 
 Одно проверяемое предложение «X падает потому что Y». Примеры:
 - "test_profile_flow падает потому что getter не отдаёт ключ `status`, а `Format` его требует → `KeyError` при рендере."
-- "import-linter красный потому что `usecase.py` импортит `httpx` напрямую — должно идти через `gateway` (контракт «Чистое ядро»)."
-- "mypy ругается потому что `HttpProfileGateway.update_name` не совпадает сигнатурой с `ports.BackendGateway` — адаптер структурно не удовлетворяет порту."
+- "import-linter красный потому что `usecase.py` импортит `httpx` напрямую — HTTP живёт в pkg-клиенте (`pkg/http_client/`), ядру положены только Protocol-порты (контракт «Чистое ядро»)."
+- "mypy ругается потому что `ProfileAPI.rename_user` не совпадает сигнатурой с `ports.BackendGateway` — pkg-клиент структурно не удовлетворяет порту, байнд в provider.py не соберётся."
 - "`setup_dialogs` падает потому что два окна объявили `state=ProfileSG.VIEW` (дубль) либо State объявлен по месту вместо `platform/dialogs/states.py`."
 
 Несколько гипотез — выбирай самую дешёвую в проверке.
@@ -74,7 +74,7 @@ uv run pytest -k "collision" -q          # startup-smoke композиции
 1. **Напиши падающий тест**, воспроизводящий баг.
    - unit для policy/views/валидатора; flow (`BotClient`+`MockMessageManager`+`JsonMemoryStorage`) для сценария окна.
    - Тест падает **по той же причине**, что и прод-баг — иначе тестируешь другое.
-   - Мокай **порт** (`FakeBackendClient`/фейк-gateway), не транспорт. Кнопки локай по `callback_data`/тексту.
+   - Мокай **порт** (фейк порта в unit-тесте usecase) или границу бэкенда (`FakeApiClient` из `tests/_fakes/backend.py` в flow-тестах), не транспорт; httpx/respx — только в `tests/pkg/`. Кнопки локай по `callback_data`/тексту.
 2. `uv run pytest tests/.../test_new.py -q` → red. Подтверди, что red — твой red, не тест-инфра.
 3. **Только теперь** правь продакшен-код.
 4. `uv run pytest tests/.../test_new.py -q` → green.
@@ -85,12 +85,14 @@ uv run pytest -k "collision" -q          # startup-smoke композиции
 
 | Случай | Действие |
 |---|---|
-| **import-linter «Чистое ядро»** | `usecase`/`policy`/`state`/`dto` импортит `httpx`/`aiogram`/`aiogram_dialog`/`redis`/свой `gateway`. Вынеси I/O в `gateway.py`, оставь ядру только Protocol-порты. |
+| **import-linter «Чистое ядро»** | `usecase`/`policy`/`state`/`dto` импортит `httpx`/`aiogram`/`aiogram_dialog`/`redis`/свой `infra/`. HTTP — в pkg-клиент (`pkg/http_client/`), ядру — Protocol-порты (wire-модели `bot.pkg.*` и `pylibinfra.httpclient` разрешены). |
 | **import-linter «Слои внутри фичи»** | стрелка «вверх» (напр. `usecase → handlers`) или `getters`↔`handlers` импортят друг друга. Они один слой — общее в `views`/`state`. |
 | **import-linter «Независимость фич»** | прямой импорт другой фичи из ядра/presentation. Только `adapters.py`/`provider.py` (порт + адаптер — `scaffold` backend-port). |
+| **import-linter «Handlers/getters без policy»** | handler/getter зовёт `policy` напрямую. Доменное решение — метод usecase; handler получает результат-данные и мапит на экран/текст. |
+| **import-linter «pkg не знает про бот»** | модуль в `bot.pkg` импортит `bot.features`/`bot.platform`/`aiogram`. pkg — переиспользуемые клиенты; бизнес — в фиче. |
 | **ruff T20 / banned-api** | `print`/`logging` напрямую → `pylibinfra.logkit.Logger` (в usecase инжектится, см. profile). В тестах T20 выключен. |
 | **ruff S (bandit)** | подозрительный паттерн; если оправдан — `# noqa: S<NNN>  # <причина>`, не глуши скопом. |
-| **mypy Protocol-несовместимость** | адаптер/gateway не совпадает сигнатурой с портом. Выровняй типы; mypy strict проверяет структурно. |
+| **mypy Protocol-несовместимость** | pkg-клиент/адаптер не совпадает сигнатурой с портом (`ports.py`). Выровняй имена/типы методов; mypy strict проверяет структурно на байнде в `provider.py`. |
 | **startup-smoke (`setup_dialogs`/`emit_startup`)** | коллизия/пропуск State: дубль `state=` на два окна; State объявлен по месту, а не в `platform/dialogs/states.py`; два `Dialog` на одну StatesGroup; окно без `state=`. Чини в `states.py`+`dialogs.py`, прогони `pytest -k collision`. Удалил живой State → это `state-migration`, верни deprecation. |
 | **storage-serialization** | в `dialog_data`/`widget_data`/`start_data` попал не-JSON (`datetime`→ISO-строка, pydantic→`model_dump(mode="json")`). `JsonMemoryStorage` в flow-тестах ловит это — добавь тест. |
 

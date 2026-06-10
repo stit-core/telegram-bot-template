@@ -78,17 +78,17 @@ def build_router(cache: Cache, client: aioredis.Redis) -> NotificationRouter:
     return router
 ```
 
-`NotificationRouter.on(stream, subject, durable, handler)` — точка расширения; handler = `async (payload, delivery)`. `NotifierBundle` уже собирается в `ExtensionProvider.notifiers` через `build_router`. `OptionalStreamBus` отдаётся только при включённом JetStream (иначе None → runner пропускает notifications — `extensions.py`).
+`NotificationRouter.on(stream, subject, durable, handler)` — точка расширения; handler = `async (payload, delivery)`. `NotifierBundle` уже собирается в `ExtensionProvider.notifiers` (`app.py`) через `build_router`. `OptionalStreamBus` отдаётся только при включённом JetStream (иначе None → runner пропускает notifications — `ExtensionProvider.stream_bus`).
 
 ## 4. Резолв chat_id — общий контракт
 
-`chat_id` берётся из `link:chat:<user_ref>`, который **пишет онбординг** (`start.gateway.mark_onboarded` → `chat_link_key`). Если новый источник `user_ref` не совпадает с тем, что пишет start, — заведи запись link на своём пути линковки, иначе доставка молча пропускается (нет адресата). Это продуктовый маппинг, живёт в `deliver.py`/`platform/links.py`.
+`chat_id` берётся из `link:chat:<user_ref>`, который **пишет онбординг** (`start/infra/store.py: CacheOnboardingStore.mark_onboarded` → `chat_link_key`). Если новый источник `user_ref` не совпадает с тем, что пишет start, — заведи запись link на своём пути линковки, иначе доставка молча пропускается (нет адресата). Это продуктовый маппинг, живёт в `deliver.py`/`platform/links.py`.
 
 ## 5. Тесты + верификация
 
 - unit-тест deliverer (образец `tests/unit/test_notifications.py`): фейк `Cache` + фейк `Delivery` (`tests/_fakes/delivery.py`) + фейк dedup. Проверь: дедуп срабатывает (второй вызов — no-op), нет link → no send, happy path → один send с нужным текстом/chat_id.
 - идемпотентность (at-least-once): два одинаковых payload → одна доставка.
-- `make check`. Тронул `extensions.py`/subject — это инфра-поверхность → `infra-handoff` (cross-service NATS-subject).
+- `make check`. Новый/изменённый subject — это инфра-поверхность → `infra-handoff` (cross-service NATS-subject).
 
 `feat(notifications): deliver subscription.expiring push`
 

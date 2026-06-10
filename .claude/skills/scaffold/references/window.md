@@ -35,7 +35,7 @@ class Profile(StatesGroup):
 
 ## 3. getter (если окно показывает данные)
 
-Окно с динамикой требует getter. Дёргает **usecase** (не gateway), `**kwargs` обязателен, дефолты всех ключей `Format`:
+Окно с динамикой требует getter. Дёргает **usecase** (не порт/pkg-клиент), `**kwargs` обязателен, дефолты всех ключей `Format`:
 
 ```python
 # getters.py (дополнение)
@@ -107,7 +107,7 @@ profile_dialog = Dialog(view_window, edit_name_window, confirm_window)
 
 - ❌ Переиспользовать существующий `State` для нового окна (дубль `state=`).
 - ❌ `State()` по месту в `dialogs.py` вместо `platform/dialogs/states.py`.
-- ❌ getter ходит в gateway/httpx — дёргай usecase.
+- ❌ getter ходит в порт/pkg-клиент/httpx — дёргай usecase.
 - ❌ `Format("{x}")` без ключа `x` в getter — `KeyError` уронит рендер.
 - ❌ Несколько `media`/`markup`/`input` в одном окне (aiogram_dialog допускает по одному каждого типа).
 - ❌ Не привязать переход к новому окну — оно будет недостижимо (проверь графом, `preview-flow`).

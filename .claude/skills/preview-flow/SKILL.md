@@ -38,7 +38,7 @@ uv add --group dev "aiogram-dialog[tools]"      # или: uv pip install diagram
 
 ## 2. Граф переходов (`render_transitions`)
 
-Собирает все `Dialog`'ы проекта (как `extensions.py` отдаёт в `RouterBundle`), строит directed-граф State→State по рёбрам виджетов (`SwitchTo`/`Next`/`Back`/`Start`/`Cancel`):
+Собирает все `Dialog`'ы проекта (как `ExtensionProvider.routers` в `app.py` отдаёт в `RouterBundle`), строит directed-граф State→State по рёбрам виджетов (`SwitchTo`/`Next`/`Back`/`Start`/`Cancel`):
 
 ```python
 # scripts/preview.py (dev-утилита, не коммит в рантайм)
