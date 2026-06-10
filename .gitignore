@@ -5,6 +5,7 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.local.example
 .idea/
 .vscode/
 .DS_Store

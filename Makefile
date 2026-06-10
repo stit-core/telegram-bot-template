@@ -59,7 +59,7 @@ run: ## локальный polling-бот (нужен BOT_TOKEN; OTEL_STDOUT_ONL
 status: ## сводка состояния репо (ветка/drift/план/гейт) — A='--full'
 	@bash scripts/status.sh $(A) 2>/dev/null || { echo "branch: $$(git branch --show-current)"; git status -s; }
 
-logs: ## прод-логи через корп-Loki (A='query --limit 100 {service_name="telegram-bot"}')
+logs: ## прод-логи через корп-Loki (A='query --service telegram-bot --since 1h')
 	@bash scripts/tools/logs.sh $(A)
 
 validate-stack-docs: ## проверить целостность docs/stack/* (вход de-template)
