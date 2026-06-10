@@ -1,6 +1,6 @@
 ---
 name: dialog-deep-dive
-description: Спроектировать флоу диалога как source-of-truth ДО кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup. Ведёт сессию через раунды AskUserQuestion (без монологов и догадок), фиксирует флоу в docs (карта диалога) + рабочую память state/. Аналог domain-deep-dive, но для UI-сценария бота. Если рядом sibling-checkout'ом лежит стратегия-репо (`<org>/strategy`, форк business-strategy-template) со слоем telegram-bot-flow/<surface>/ — работает ТРАНСЛЯТОРОМ его stable-артефактов (dialog/window/command/notification) в карту флоу и код-понятия, а не интервьюером. Активируй когда проектируешь новый пользовательский сценарий/флоу, говоришь "/dialog-deep-dive", "спроектируем диалог", "продумаем флоу/экраны", "как должен идти этот сценарий", "разверни дизайн из стратегии", или когда init-service/plan дошёл до нового флоу. Точечная правка уже спроектированного окна — прямой Edit/scaffold, не сюда.
+description: Спроектировать флоу диалога как source-of-truth ДО кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup. Ведёт сессию через раунды AskUserQuestion (без монологов и догадок), фиксирует флоу в docs (карта диалога) + рабочую память state/. Аналог domain-deep-dive, но для UI-сценария бота. Если рядом sibling-checkout'ом лежит стратегия-репо (`<org>/strategy`, форк business-strategy-template) со слоем telegram-bot-flow/<surface>/ — работает ТРАНСЛЯТОРОМ его stable-артефактов (features: dialog/window/use-case + сквозные command/notification) в карту флоу и код-понятия, а не интервьюером. Активируй когда проектируешь новый пользовательский сценарий/флоу, говоришь "/dialog-deep-dive", "спроектируем диалог", "продумаем флоу/экраны", "как должен идти этот сценарий", "разверни дизайн из стратегии", или когда init-service/plan дошёл до нового флоу. Точечная правка уже спроектированного окна — прямой Edit/scaffold, не сюда.
 ---
 
 # Skill: dialog-deep-dive
@@ -39,19 +39,25 @@ Enum'ы как опции (тип виджета, тип перехода, launc
 upstream экосистемы) и в нём для bot-поверхности есть слой
 `docs/projects/<project-slug>/telegram-bot-flow/<surface>/` — **дизайн уже спроектирован
 аналитиком** (скиллы `telegram-bot-flow-deep-dive`/`-audit`). Тогда скилл — **транслятор**, не
-интервьюер: читает 4 kind и разворачивает их в карту флоу и код-понятия.
+интервьюер: читает 5 kind (слой features-ориентирован — фича `features/<feature>/{dialog.md, window.md,
+use-case.md}` + сквозные `command.md`/`notification.md` на корне) и разворачивает их в карту флоу и
+код-понятия.
 
 | Артефакт стратегии (поля) | → код-понятие бота |
 |---|---|
-| `dialogs/<slug>/index.md` (`states-group`, `windows`, `launch-mode`, `started-by`, `dialog-data`) | `StatesGroup` (имя = `states-group`); порядок `State` = порядок `windows`; `LaunchMode` (`root`→`ROOT`); точки входа; контракт `dialog_data` |
-| `windows/<slug>/index.md` (`state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state` = имя `State`); текст → `I18NFormat`/`Format` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + **fallback**); `errors` → `ErrorUX`/getter-дефолты |
+| `features/<feature>/dialog.md` (`states-group`, `windows`, `launch-mode`, `started-by`, `dialog-data`) | `StatesGroup` (имя = `states-group`); порядок `State` = порядок `windows`; `LaunchMode` (`root`→`ROOT`); точки входа; контракт `dialog_data` |
+| `features/<feature>/window.md` (H2 на окно: `state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state` = имя `State`); текст → `I18NFormat`/`Format` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + **fallback**); `errors` → `ErrorUX`/getter-дефолты |
+| `features/<feature>/use-case.md` (H2 на UC: `operation`, Inputs/Outputs/Dependencies/Steps/Errors) | метод-оркестратор `usecase` фичи (имя ← `operation`); `Dependencies` `use-case:<ctx>.<Operation>` → порт (`ports.py`) → pkg-клиент; `Outputs`/`Errors` → sentinel-исходы для `when` окна |
 | `command.md` (`command`, `starts`, `stack`, `payload`) | dispatcher-level `CommandSpec` (`CommandBundle`); `stack: reset` → `RESET_STACK`; deep-link `payload` → `start_data` |
 | `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`/`BgManager`); `trigger: event:…` → subject; идемпотентность |
 
-Действия и данные ссылаются на домен: `widget.action` / `getter.source` = `use-case:<ctx>.<Operation>`
-→ usecase/порт фичи (имена операций — из `domains/<ctx>/use-cases/` той же стратегии);
-`notification.trigger` = `event:<ctx>.<Event>` → subject подписчика. Зеркало UX — `interface/<surface>/`
-той же стратегии. Полный маппинг полей в файлы фичи — `docs/reference/dialog-mapping.md`.
+Действия и данные окна ссылаются на **use-case бота** фичи: `widget.action` / `getter.source` =
+`use-case:<uc-slug>` (реф **без точки**) → метод `usecase` фичи; сам bot UC в `Dependencies` ссылается
+на доменный `use-case:<ctx>.<Operation>` (**с точкой**, имена — из `domains/<ctx>/use-cases/` той же
+стратегии) → порт фичи → pkg-клиент. Точка различает уровни: без точки — оркестратор бота, с точкой —
+домен. `notification.trigger` = `event:<ctx>.<Event>` → subject подписчика. Зеркало UX —
+`interface/<surface>/` той же стратегии. Полный маппинг полей в файлы фичи —
+`docs/reference/dialog-mapping.md`.
 
 **Контракт чтения.** Брать только `status: stable`-артефакты; стратегия-репо **read-only** (в неё
 не пишем — дыры в дизайне эскалируются аналитику запуском `/telegram-bot-flow-deep-dive`, до ответа

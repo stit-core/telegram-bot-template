@@ -34,7 +34,7 @@ description: Оркестратор онбординга потребителя 
 Прежде чем разворачивать платформу — зафиксируй **пользовательские сценарии как флоу**: какие диалоги, окна, переходы, какие данные нужны getter'ам, какие состояния виджетов. Это source-of-truth presentation **до** кода.
 
 - **Чейнь в `dialog-deep-dive`** per сценарий: окна → переходы → getter-данные → состояния виджетов → StatesGroup-инвентарь. Артефакты — `docs/stack/dialogs.md` (карта флоу) + рабочая память скилла.
-- **Если есть стратегия-репо** (`<org>/strategy`, форк `business-strategy-template`, sibling-checkout'ом рядом) и в нём для bot-поверхности заполнен слой `telegram-bot-flow/<surface>/` — дизайн диалогов уже спроектирован аналитиком (dialog/window/command/notification, брать только `stable`). `dialog-deep-dive` тогда **транслирует** его в карту флоу (read-only, в стратегию не пишем), интервью — только по дырам. Контракт хендоффа — `docs/reference/ecosystem.md`.
+- **Если есть стратегия-репо** (`<org>/strategy`, форк `business-strategy-template`, sibling-checkout'ом рядом) и в нём для bot-поверхности заполнен слой `telegram-bot-flow/<surface>/` — дизайн диалогов уже спроектирован аналитиком (фичи `dialog/window/use-case` + сквозные `command/notification`, брать только `stable`). `dialog-deep-dive` тогда **транслирует** его в карту флоу (read-only, в стратегию не пишем), интервью — только по дырам. Контракт хендоффа — `docs/reference/ecosystem.md`.
 - Reference-фичи (`start`/`profile`/...) — учебные образцы раскладки; удаление — этап 5.
 
 ### 2. Спроектировать стек → `stack-deep-dive`

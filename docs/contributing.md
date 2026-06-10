@@ -7,7 +7,7 @@
 
 | Слой | Где | Когда грузится | Сила |
 |---|---|---|---|
-| Ядро + роутер | `.claude/CLAUDE.md` | всегда, каждый запуск | advisory |
+| Ядро + роутер | `CLAUDE.md` (корень репо) | всегда, каждый запуск | advisory |
 | Path-scoped правила | `.claude/rules/*.md` с `paths:` | когда matching-файл в контексте | advisory |
 | Skills (процедуры) | `.claude/skills/<name>/SKILL.md` | по `description` или `/<name>` | procedural |
 | Settings / permissions | `.claude/settings.json` | старт сессии | детерминированно (deny) |
@@ -39,7 +39,7 @@ prompt → /smartdev (cockpit: make status, читает roadmap, чейнит �
 | git-хуки | `scripts/git-hooks/` (ставит `make setup`): commit-msg (Conventional Commits), pre-push (`make check`) | **детерминированно** |
 | permissions.deny | `.claude/settings.json` | **детерминированно** (блок `--no-verify`, force-push, правка `.env*`/`*.key`, запись в авто-память) |
 | Path-scoped rules | `.claude/rules/*.md` | контекстная подсказка |
-| CLAUDE.md | `.claude/CLAUDE.md` | always-on advisory |
+| CLAUDE.md | `CLAUDE.md` (корень репо) | always-on advisory |
 
 Критичные инварианты держат git-хуки + `permissions.deny`; soft-guidance — CLAUDE.md и rules. Push в
 `main` через pre-push → `make check`.

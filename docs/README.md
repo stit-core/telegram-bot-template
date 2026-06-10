@@ -19,4 +19,4 @@
 - **Флоу диалогов** — проектируется скиллом `/dialog-deep-dive` в карту `docs/stack/dialogs.md`. Если у проекта есть **стратегия-репо** (`<org>/strategy`, форк `business-strategy-template`, sibling-checkout рядом) — дизайн приходит из его слоя `docs/projects/<slug>/telegram-bot-flow/<surface>/` (read-only); маппинг в код — [reference/dialog-mapping.md](reference/dialog-mapping.md).
 - [stack/README.md](stack/README.md) — артефакты платформы/стека (вход для `/de-template`). Остаётся в этом репо.
 
-Точка входа агента в репо — `.claude/CLAUDE.md` (ядро + роутер). Дневной флоу — skill `/smartdev`. Исчерпывающий референс по `aiogram_dialog` — `aiogram-dialog-docs/`.
+Точка входа агента в репо — `CLAUDE.md` (ядро + роутер). Дневной флоу — skill `/smartdev`. Исчерпывающий референс по `aiogram_dialog` — `aiogram-dialog-docs/`.

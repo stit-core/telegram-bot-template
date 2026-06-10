@@ -50,9 +50,9 @@ identity-link).
 
 | стратегия отдаёт | этот репо читает чем | разворачивает во |
 |---|---|---|
-| `telegram-bot-flow/<surface>/` (dialog/window/command/notification, `stable`) | `/dialog-deep-dive` (транслятор) → карта `docs/stack/dialogs.md` | `StatesGroup`, окна, виджеты, getter'ы, обработчики |
+| `telegram-bot-flow/<surface>/` (фичи `dialog/window/use-case` + сквозные `command/notification`, `stable`) | `/dialog-deep-dive` (транслятор) → карта `docs/stack/dialogs.md` | `StatesGroup`, окна, виджеты, use-case'ы-оркестраторы, getter'ы, обработчики |
 | `interface/<surface>/` (зеркало UX) | контекст синтеза | соответствие виджетов атомам |
-| `domains/<ctx>/{use-cases,events}/` | рефы `use-case:`/`event:` | метод usecase/порт фичи, NATS-subject |
+| `domains/<ctx>/{use-cases,events}/` | рефы `use-case:<ctx>.<Operation>`/`event:` (в `Dependencies` bot UC / `notification`) | порт фичи → pkg-клиент, NATS-subject |
 
 Маппинг полей артефакта в файлы фичи — [dialog-mapping.md](dialog-mapping.md). Поверхности
 изолированы: бот читает слой одной bot-поверхности (`type: bot` из реестра `surface.md` стратегии).

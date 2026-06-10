@@ -26,10 +26,13 @@ i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не зд�
 Флоу диалога проектируется **до** кода (`/dialog-deep-dive`: окна, переходы, getter-данные,
 состояния виджетов) — это source of truth, код пишется по нему. Если у проекта есть
 стратегия-репо `<org>/strategy` (форк `business-strategy-template`, sibling-checkout рядом),
-дизайн диалогов приходит **оттуда**: слой `docs/projects/<project-slug>/telegram-bot-flow/<surface>/`
-(dialog · window · command · notification — те же понятия: StatesGroup, state, виджеты,
-getter-контракт, переходы, рефы `use-case:`/`event:` на домены). `/dialog-deep-dive` принимает
-его stable-артефакты как вход (read-only, в strategy не пишем), интервью — только по дырам.
+дизайн диалогов приходит **оттуда**: слой `docs/projects/<project-slug>/telegram-bot-flow/<surface>/`,
+features-ориентированный — фича `features/<feature>/{dialog.md, window.md, use-case.md}` (диалог + окна
++ use-case'ы бота) плюс сквозные `command.md`/`notification.md` на корне поверхности. Те же понятия, что
+в коде: StatesGroup, state, виджеты, getter-контракт, переходы, **use-case бота** (оркестратор поверх
+портов — ложится на слой `usecase` фичи), рефы `use-case:<ctx>.<Operation>`/`event:` на домены.
+`/dialog-deep-dive` принимает его stable-артефакты как вход (read-only, в strategy не пишем), интервью
+— только по дырам.
 Платформа/стек — `docs/stack/` (`/stack-deep-dive`). `start`/`profile`/`payments`/`lang`/`notifications` — reference-фичи
 (изучить, потом prune под свой проект через `/de-template`). Роль репо в экосистеме — `docs/reference/ecosystem.md`.
 
@@ -47,7 +50,7 @@ getter-контракт, переходы, рефы `use-case:`/`event:` на д
 | Архитектура, слои, гексагон фичи, composition root, жизненный цикл апдейта | `docs/reference/architecture.md` + rule `feature-architecture` |
 | Диалоги: окна/getter/handler, навигация, `LaunchMode.ROOT`, `RESET_STACK` | rule `dialog-architecture` + `aiogram-dialog-docs/` |
 | Маппинг флоу диалога → файлы фичи | `docs/reference/dialog-mapping.md` |
-| Вход дизайна из стратегии (`<org>/strategy`): слой `telegram-bot-flow` (dialog/window/command/notification) → карта флоу | skill `/dialog-deep-dive` (транслятор) + `docs/reference/dialog-mapping.md` + `ecosystem.md` |
+| Вход дизайна из стратегии (`<org>/strategy`): слой `telegram-bot-flow` (фичи: dialog/window/use-case + сквозные command/notification) → карта флоу | skill `/dialog-deep-dive` (транслятор) + `docs/reference/dialog-mapping.md` + `ecosystem.md` |
 | State/Redis: JSON-сериализуемость, `with_destiny`, TTL, эволюция StatesGroup | rules `storage-serialization`, `state-lifecycle` + skill `/state-migration` |
 | Фоновые апдейты (notifications/jobs), `BgManager`-грабли | rule `background-updates` |
 | Observability (`tg_*`/`biz_tg_*`, трейс, health) | `docs/reference/observability.md` + skill `/query-logs` + rule `env-local` |

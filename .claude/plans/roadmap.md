@@ -12,7 +12,7 @@ changelog'ов нет: они расходятся с правдой и меша
 Active-секцией, а не хвостом в удаляемой.
 
 **Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
-mypy + pytest). См. `.claude/CLAUDE.md`.
+mypy + pytest). См. `CLAUDE.md`.
 
 **Current focus:** активной задачи нет. Шаблон на архитектуре `pkg/http_client` + строгие handlers
 (pylibinfra пин `b713602`). `docs/` — go-backend-модель (reference + `stack/_templates`); дизайн

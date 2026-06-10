@@ -12,19 +12,25 @@
 
 Если рядом sibling-checkout'ом лежит стратегия-репо (форк `business-strategy-template`) со слоем
 `docs/projects/<project-slug>/telegram-bot-flow/<surface>/` — дизайн уже спроектирован аналитиком
-(4 kind, брать `status: stable`). `/dialog-deep-dive` транслирует его в карту флоу, `/scaffold`
-разворачивает в код:
+(5 kind, брать `status: stable`). Слой **features-ориентирован**: диалог, его окна и его use-case'ы
+бота собраны в фичу `features/<feature>/{dialog.md, window.md, use-case.md}` (одна фича = один диалог);
+команды и уведомления — сквозными реестрами `command.md`/`notification.md` на корне поверхности.
+`/dialog-deep-dive` транслирует слой в карту флоу, `/scaffold` разворачивает в код:
 
 | Артефакт стратегии (поля) | → код бота |
 |---|---|
-| `dialogs/<slug>/index.md` (`states-group`, `windows`, `launch-mode`, `started-by`, `dialog-data`) | `StatesGroup` (имя = `states-group`); порядок `State` = порядок `windows`; `LaunchMode` (`root`→`ROOT`); точки входа; pydantic-модель `state.py` (`dialog_data`) |
-| `windows/<slug>/index.md` (`state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state`); текст → `Format`/`I18NFormat` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + fallback); `errors` → `ErrorUX`/getter-дефолты |
+| `features/<feature>/dialog.md` (`states-group`, `windows`, `launch-mode`, `started-by`, `dialog-data`) | `StatesGroup` (имя = `states-group`); порядок `State` = порядок `windows`; `LaunchMode` (`root`→`ROOT`); точки входа; pydantic-модель `state.py` (`dialog_data`) |
+| `features/<feature>/window.md` (H2-секция на окно: `state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state`); текст → `Format`/`I18NFormat` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + fallback); `errors` → `ErrorUX`/getter-дефолты |
+| `features/<feature>/use-case.md` (H2-секция на UC: `operation`, Actor/Inputs/Outputs/Dependencies/Steps/Errors) | метод-оркестратор `usecase.py` фичи (имя ← `operation`); `Inputs` → аргументы handler'а/getter'а; `Dependencies` `use-case:<ctx>.<Operation>` → метод порта (`ports.py`) → pkg-клиент; `Dependencies` `dialog-data` → чтение/запись state; `Outputs`/`Errors` → sentinel-исходы, по которым handler/getter маршрутизируют (`when`) |
 | `command.md` (`command`, `starts`, `stack`, `payload`) | `CommandSpec` (`CommandBundle`); `stack: reset` → `RESET_STACK`; `payload` → `start_data` |
 | `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`/`BgManager`); `trigger: event:…` → subject; идемпотентность |
 
-`widget.action`/`getter.source` = `use-case:<ctx>.<Operation>` → метод usecase/порт фичи (имена — из
-`domains/<ctx>/use-cases/` той же стратегии); `notification.trigger` = `event:<ctx>.<Event>` →
-subject подписчика. `states-group`/`state`/`id` виджета — структурные идентификаторы, **не
+`widget.action`/`getter.source` = `use-case:<uc-slug>` — **use-case бота** этой фичи (реф **без точки**)
+→ метод `usecase` фичи (оркестратор). Сам bot UC в `Dependencies` ссылается на **доменный** use-case
+`use-case:<ctx>.<Operation>` (**с точкой**, имена — из `domains/<ctx>/use-cases/` той же стратегии) →
+метод порта фичи (`ports.py`) → pkg-клиент. Точка различает уровни: без точки — оркестратор бота
+(`usecase`), с точкой — домен на бэкенде (порт). `notification.trigger` = `event:<ctx>.<Event>` →
+subject подписчика. `states-group`/`state`/`operation`/`id` виджета — структурные идентификаторы, **не
 переименовываются** (их читает код). Контракт read-only — `ecosystem.md § Хендофф из стратегии`.
 
 ## Bounded context

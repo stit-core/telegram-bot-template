@@ -85,7 +85,7 @@ claude                 # → /init-service
 ## Команды
 
 `make help` — полный список. Канонический gate — **`make check`**. Полный гайд агента —
-[`.claude/CLAUDE.md`](.claude/CLAUDE.md); точка входа в сессию — `/smartdev`.
+[`CLAUDE.md`](CLAUDE.md); точка входа в сессию — `/smartdev`.
 
 ```bash
 make check     # ruff format/check + import-linter + mypy + pytest (gate перед push)
