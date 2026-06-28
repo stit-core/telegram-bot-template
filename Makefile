@@ -52,7 +52,7 @@ check: ## КАНОНИЧЕСКИЙ gate: fmt-check + lint + typecheck + test
 	@echo "✓ check clean"
 
 ##@ RUN
-run: ## локальный polling-бот (нужен BOT_TOKEN; OTEL_STDOUT_ONLY=true для dev)
+run: ## локальный polling-бот (нужен BOT_TOKEN; логи в stdout по LOG_STDOUT)
 	uv run python -m bot
 
 ##@ INTEL

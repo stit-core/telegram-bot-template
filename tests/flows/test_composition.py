@@ -2,7 +2,8 @@
 middleware/i18n/commands/routers/error-handlers), setup_dialogs не ловит коллизий StatesGroup.
 
 Офлайн: NATS/Telegram не дёргаем (BotRunner не резолвим — он бы поднял соединения). redis —
-ленивый (не подключается на сборке Dispatcher). telemetry — stdout-only.
+ленивый (не подключается на сборке Dispatcher). telemetry экспортит в OTLP; коллектора нет,
+поэтому короткий OTEL_EXPORTER_OTLP_TIMEOUT, чтобы flush на close() не ретраил до дефолта.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ pytestmark = pytest.mark.dialog
 async def test_container_assembles_and_dialogs_collision_free(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("OTEL_STDOUT_ONLY", "true")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "1")
     monkeypatch.setenv("OTEL_SERVICE_NAME", "bot-test")
 
     # dialog'и — module-level синглтоны; отвяжем от dispatcher'ов прошлых тестов

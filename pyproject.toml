@@ -28,12 +28,12 @@ dev = [
 ]
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
-# пинится на конкретную ревизию инфры, как go-сервис на go.mod-версию.
-# СЕЙЧАС: коммит b713602 — httpclient.ApiClient (typed JSON-слой: NotFound/Conflict/
-# Unavailable, Idempotency-Key) + именованные бэкенды (BackendsConfig/ApiClients) поверх
-# полного tgbotkit-стека. Свапнуть на релиз-тег.
+# пинится на релиз-тег инфры, как go-сервис на go.mod-версию.
+# ПИН: v0.3.0 — dual-sink logger (logkit OTLP + JSON-stdout по LOG_STDOUT) и
+# telemetry без stdout-only режима (метрики/трейсы только OTLP) поверх полного
+# tgbotkit-стека (+ httpclient.ApiClient: typed JSON, именованные бэкенды).
 [tool.uv.sources]
-pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "b713602" }
+pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v0.3.0" }
 
 [build-system]
 requires = ["hatchling"]
