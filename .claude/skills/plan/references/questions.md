@@ -45,7 +45,7 @@
 - Что делать, если падает в проде? `/start` RESET_STACK спасает?
 
 ## Инфра-поверхность (→ секция Infra impact + skill infra-handoff)
-- Новый/изменённый required env-var (`config.py`/`.env.example`) или Vault-секрет (`BOT_TOKEN`/`WEBHOOK_*`)?
+- Новый/изменённый required env-var/секрет (`config.py`/`.env.example`, `BOT_TOKEN`/`WEBHOOK_*` — значение в compose env проекта)?
 - Webhook vs polling-режим тронут? `allowed_updates` расширяются?
 - Cross-service NATS-subject (notification)?
 - Новая инфра-механика (middleware/runtime/новый kit-helper) → это **не правка шаблона**, а PR в `tgbotkit` через `infra-handoff`.

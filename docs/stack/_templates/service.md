@@ -17,7 +17,7 @@ status: draft
 
 ## Versioning
 <Схема версий (semver `vX.Y.Z`). Как версия и commit попадают в образ (`VERSION`/`GIT_SHA`
-build-arg → resource-attrs telemetry). Что логируется на старте (`"starting" service/version/commit`).>
+build-arg) и в стартовый лог. Что логируется на старте (`"starting" service/version/commit`).>
 
 ## Image
 <Один образ `<host>/<org>/bot:<vX.Y.Z>` (бот stateless, migrate-образа нет; notifications/jobs — в

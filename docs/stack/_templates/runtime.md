@@ -17,11 +17,11 @@ NATS-подписчики (notifications), периодические jobs. Вс
 
 ## Health & lifecycle
 <Health-probe (httpkit `/health`; в polling биндится health-порт `HTTP_*`). Graceful shutdown —
-в kit'е (`container.close()` → telemetry-flush). Что проверяет infra (`make ps` → healthy).>
+в kit'е (`container.close()` → закрытие ресурсов). Что проверяет infra (`make ps` → healthy).>
 
 ## Generates
 <Что de-template родит:
-- `app.py` `run()` (резолв Tracer → BotRunner → run)
+- `app.py` `run()` (резолв `BotRunner` → run)
 - `BotConfig` mode/webhook в `config.py`
 - env: `BOT_MODE`, `WEBHOOK_*` (если webhook), `HTTP_*` (health-порт в polling)
 - health-wiring (kit)>

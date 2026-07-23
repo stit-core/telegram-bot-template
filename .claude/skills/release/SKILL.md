@@ -9,7 +9,7 @@ description: Запушить новую версию образа бота в r
 
 **Один образ.** В отличие от go-backend (api+migrate lockstep) у бота **нет migrate-образа**: бот stateless, весь state (FSM/диалоги/dedup/identity-link) живёт в Redis, схему БД он не держит. Фоновые подсистемы (notifications-подписчики, jobs) поднимаются **в том же процессе** через точки расширения tgbotkit — отдельного worker-образа тоже нет.
 
-Дальше — **handoff** в другие репо: корп-сторона `vault kv patch`, проектный infra-репо `make ship`. Эти шаги не выполняются здесь — `make release` печатает агрегированный INFRA-HANDOFF-блок, оператор передаёт его out-of-band.
+Дальше — **handoff** в проектный infra-репо: обновить `bot_tag`/env в compose и `make ship`. Этот шаг не выполняется здесь — `make release` печатает агрегированный INFRA-HANDOFF-блок, оператор передаёт его out-of-band.
 
 ## Когда применять
 
@@ -57,7 +57,7 @@ make release VERSION=vX.Y.Z
 2. **confirm-промпт** (нет TTY/EOF → отмена, accidental release невозможен);
 3. annotated tag, если на HEAD ещё нет (иначе использует существующий; конфликт версий → fail);
 4. preflight: ветка=main / clean / annotated semver на HEAD / docker-auth — fail-fast;
-5. `docker buildx --platform linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный `pylibinfra[tgbotkit]` через `--mount=type=ssh`), `VERSION`/`GIT_SHA` зашиты в образ (resource-attrs telemetry);
+5. `docker buildx --platform linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный `pylibinfra[tgbotkit]` через `--mount=type=ssh`), `VERSION`/`GIT_SHA` зашиты в образ (версия/коммит билда);
 6. печатает агрегированный **INFRA-HANDOFF** и STOP.
 
 ---
@@ -70,11 +70,10 @@ make release VERSION=vX.Y.Z
 
 - `bot_tag → <v>` (один образ);
 - **накопленные `**Infra impact.**`** — `release.sh` агрегирует блоки из активных секций `.claude/plans/roadmap.md` (механизм — rule `infra-impact` + skill `infra-handoff`). Если пусто — печатает напоминание убедиться, что инфра-затрагивающее зафиксировано;
-- действия инфра-стороны:
-  - корп: `vault kv patch kv/projects/<project>/<env>/meta bot_tag=<v>`
-  - проект: в `<client-org>/infra` → `make ship`.
+- действие инфра-стороны:
+  - проект: в `<client-org>/infra` обнови `bot_tag=<v>` (env в compose) → `make ship`.
 
-Твоя роль после команды: **показать блок юзеру и сказать передать инфра-админу out-of-band**. Подставь `project`/`env`, если юзер их называл. Vault/`make ship`/`ssh` отсюда **не выполняются**.
+Твоя роль после команды: **показать блок юзеру и сказать передать инфра-админу out-of-band**. Подставь `project`/`env`, если юзер их называл. `make ship`/`ssh` отсюда **не выполняются**.
 
 ### Verify (в infra-репо, не здесь)
 
@@ -83,8 +82,8 @@ make release VERSION=vX.Y.Z
 ## Откат
 
 **Полностью в infra-репо** (этот репо не участвует — образ в registry):
-1. корпу: `vault kv patch kv/.../meta bot_tag=<предыдущий>`;
-2. в `<client-org>/infra`: `make ship`.
+1. в `<client-org>/infra` верни `bot_tag=<предыдущий>` (env в compose);
+2. `make ship`.
 
 ⚠️ Откат образа **не откатывает удалённый State**: если в релизе вырезали живой State, у юзеров в открытых диалогах уже `UnknownState` — откат образа их не «вернёт», т.к. их dialog-stack в Redis ссылается на исчезнувший State. Поэтому удаление State — всегда через `state-migration` (deprecation), а не «откатим если что».
 
@@ -97,4 +96,4 @@ make release VERSION=vX.Y.Z
 - ❌ `:latest` / `:edge` / любой не-semver tag.
 - ❌ Думать про «migrate-образ» — его нет (бот stateless, один образ).
 - ❌ Релизить удаление State как patch/minor — это major и только через `state-migration`.
-- ❌ Выполнять `make ship` / `ssh <vps>` / `vault kv patch` из этого репо. Наша роль — образ в registry + текст-handoff.
+- ❌ Выполнять `make ship` / `ssh <vps>` из этого репо. Наша роль — образ в registry + текст-handoff.

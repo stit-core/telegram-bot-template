@@ -66,7 +66,7 @@ http_client/
 ```
 
 Топология реальная: один internal-бэкенд «core» (profile/booking/payments — один base_url
-`HTTPCLIENT_*`); имя бэкенда = ключ `BackendsConfig` = label breaker-метрик. `pkg` не знает про
+`HTTPCLIENT_*`); имя бэкенда = ключ `BackendsConfig` = имя circuit-breaker'а. `pkg` не знает про
 `features`/`platform`/`aiogram` (import-linter, контракт «pkg не знает про бот»). Новый internal-
 бэкенд: модуль в `internal/`, имя-константа, `@provide` в `provider.py`, запись в `BackendsConfig`
 (`config.py`). Процедура — `scaffold backend-port`.
@@ -85,7 +85,7 @@ http_client/
   (`http_client.Provider`) + платформа (`IdentityProvider`) + фичи (`<feature>.Provider`) +
   `ExtensionProvider`. Порядок важен: `BotProvider` даёт дефолты, `LogkitProvider` и
   `ExtensionProvider` идут ПОСЛЕ (last-wins).
-- `run()` — резолв `Tracer` (init telemetry), `BotRunner`, `runner.run()`.
+- `run()` — резолв `BotRunner`, `runner.run()` (runner владеет жизненным циклом, на shutdown зовёт `container.close()`).
 
 Вся инфра-проводка (storage/middleware/`setup_dishka`/`setup_dialogs`/polling|webhook/graceful
 shutdown) — в kit'е.

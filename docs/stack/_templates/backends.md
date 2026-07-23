@@ -14,7 +14,7 @@ status: draft
 
 ## Clients
 <Перечень API-классов (`internal/<name>.py`): срез путей + pydantic wire-модели поверх kit-`ApiClient`.
-Имя бэкенда = ключ `BackendsConfig` = label breaker-метрик (дефолт `core`).>
+Имя бэкенда = ключ `BackendsConfig` = имя circuit-breaker'а (дефолт `core`).>
 
 ## Idempotency & errors
 <Где нужен `Idempotency-Key` (мутации). typed-ошибки kit'а (`NotFound`/`Conflict`/`Unavailable`)

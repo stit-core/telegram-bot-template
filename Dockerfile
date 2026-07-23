@@ -36,11 +36,12 @@ ENV PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 USER app
 
-# resource-attrs telemetry (service.version) — прокидываются на build.
+# provenance (версия/коммит) — прокидываются на build в OCI-лейблы образа.
 ARG SERVICE_VERSION=dev
 ARG GIT_COMMIT=unknown
-ENV OTEL_SERVICE_VERSION=${SERVICE_VERSION} \
-    GIT_COMMIT=${GIT_COMMIT} \
+LABEL org.opencontainers.image.version=${SERVICE_VERSION} \
+      org.opencontainers.image.revision=${GIT_COMMIT}
+ENV GIT_COMMIT=${GIT_COMMIT} \
     PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["python", "-m", "bot"]

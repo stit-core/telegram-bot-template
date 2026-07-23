@@ -1,6 +1,6 @@
 # scaffold › middleware — outer/inner-middleware (граница с tgbotkit)
 
-⚠️ **Прочитай первым.** Outer-middleware-цепочка бота (request-id → dedup `update_id` → throttle → RED+span → recovery) — **в `tgbotkit`**, не в шаблоне (ARCHITECTURE §4, rule `tgbotkit-boundary`). Generic-механика (rate-limit, dedup, observability, auth-by-token) — это **инфра**, и новая такая механика = **PR в `pylibinfra/tgbotkit`**, оформляется через `infra-handoff`, а не код в шаблоне.
+⚠️ **Прочитай первым.** Outer-middleware-цепочка бота (request-id → dedup `update_id` → throttle → recovery) — **в `tgbotkit`**, не в шаблоне (ARCHITECTURE §4, rule `tgbotkit-boundary`). Generic-механика (rate-limit, dedup, auth-by-token) — это **инфра**, и новая такая механика = **PR в `pylibinfra/tgbotkit`**, оформляется через `infra-handoff`, а не код в шаблоне.
 
 Поэтому у этого варианта две дороги. Сначала классифицируй.
 
@@ -49,7 +49,7 @@ class IsAdmin(Filter):
 aiogram позволяет навесить middleware на отдельный `Router`/`Dialog`. Это допустимо для **бизнес-обогащения данных конкретного диалога** (не generic-инфры). Но:
 
 - помни, что внутренние события диалога идут через `DIALOG_EVENT_NAME` — если middleware должен видеть и их, навесь на оба;
-- не дублируй то, что уже даёт kit (request-id, dedup, span) — получишь двойную обработку;
+- не дублируй то, что уже даёт kit (request-id, dedup) — получишь двойную обработку;
 - если ловишь себя на «это нужно всем диалогам» — это §A (PR в kit), не локальный middleware.
 
 ## Тесты + верификация
@@ -66,4 +66,4 @@ aiogram позволяет навесить middleware на отдельный `
 - ❌ Свой i18n/locale-middleware — уже есть `LocaleResolver` (`ExtensionProvider` в `app.py`).
 - ❌ Generic-middleware только на `message`, забыв `DIALOG_EVENT_NAME` — фоновые/диалоговые события его минуют.
 - ❌ Решать роль/доступ через middleware, когда хватает `policy` + `BotIdentity.role` или фильтра на `CommandSpec`.
-- ❌ Дублировать kit-механику (request-id/span) локальным middleware.
+- ❌ Дублировать kit-механику (request-id/dedup) локальным middleware.

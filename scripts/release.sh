@@ -11,7 +11,7 @@
 # работает только с публичным pylibinfra.
 #
 # Зона ответственности этого репо: код → image в registry. На STOP — всё.
-# Деплой (vault kv patch / make ship) — в <org>/infra, НЕ здесь.
+# Деплой (bot_tag в env/compose + make ship) — в <org>/infra, НЕ здесь.
 #
 # Неинтерактивный запуск (нет TTY / EOF на prompt) → отмена (exit 1):
 # accidental release невозможен. Для CI-автоматизации: RELEASE_YES=1.
@@ -131,8 +131,7 @@ fi
 cat <<EOF
 
 Действия инфра-стороны:
-  корп:    vault kv patch kv/projects/<project>/<env>/meta bot_tag=$VERSION
-  проект:  в <org>/infra → make ship
+  проект:  в <org>/infra выставь bot_tag=$VERSION (env/compose) → make ship
 
 === STOP. Зона этого репо закрыта (image в registry). Деплой — не здесь. ===
 EOF

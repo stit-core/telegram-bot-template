@@ -29,8 +29,7 @@ dev = [
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на релиз-тег инфры, как go-сервис на go.mod-версию.
-# ПИН: v0.3.0 — dual-sink logger (logkit OTLP + JSON-stdout по LOG_STDOUT) и
-# telemetry без stdout-only режима (метрики/трейсы только OTLP) поверх полного
+# ПИН: v0.3.0 — logkit (JSON-логи в stdout по LOG_STDOUT) поверх полного
 # tgbotkit-стека (+ httpclient.ApiClient: typed JSON, именованные бэкенды).
 [tool.uv.sources]
 pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v0.3.0" }

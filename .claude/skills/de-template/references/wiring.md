@@ -39,8 +39,6 @@
 - WebApp initData — `platform/webapp/init_data.py` (`validate_init_data`); убери, если без Mini App.
 
 ### 7. observability → `docs/stack/observability.md`
-- `OTEL_*` через telemetry `Config` в `config.py`; `service_name` из `service.md` (дефолт + env `OTEL_SERVICE_NAME`).
-- метрики `tg_*` эмитит kit; per-API breaker-метрики `http_client_breaker_*` лейблятся именем бэкенда из `BackendsConfig`; бизнес-метрики `biz_tg_*` — в usecase через bizmetric (если стек их объявил).
 - health/ready — httpkit (поднимается kit'ом при webhook/health-режиме).
 
 ### 8. runtime → `docs/stack/runtime.md` (последним)

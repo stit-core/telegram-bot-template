@@ -24,8 +24,8 @@ description: Углублённая интерактивная проработ�
 | `backends` | именованные бэкенды (`BackendsConfig`), base_url, таймауты, breaker, auth, идемпотентность мутаций |
 | `messaging` | NATS-subjects/streams/durable для push-уведомлений, JetStream vs core |
 | `auth` | identity-link tg↔backend, admin-allowlist (`APP_ADMIN_IDS`), initData-валидация (WebApp) |
-| `observability` | метрики `tg_*`/`biz_tg_*`, трейс апдейта (`tg.update`), health/ready |
-| `config` (роллап) | env/Vault-поверхность (`BOT_*`/`REDIS_URL`/`NATS_URL`/`HTTPCLIENT_*`/`OTEL_*`/`APP_*`), secret-карта |
+| `observability` | health/ready-эндпоинты (httpkit) |
+| `config` (роллап) | env-поверхность (`BOT_*`/`REDIS_URL`/`NATS_URL`/`HTTPCLIENT_*`/`APP_*`), secret-карта |
 | `dependencies` (роллап) | киты `pylibinfra`, внешние runtime-deps (Redis/NATS/бэкенды) и их деградация |
 | `i18n` (опц.) | локали, движок (`fluent.runtime`/`.ftl`), middleware, дефолт-локаль, фича смены языка |
 
@@ -81,7 +81,7 @@ Anti-pattern'ы и enum'ы — даёшь как опции; имена env, sub
 5. **dialogs** ⚠️ — карта флоу, корневой ROOT, error-handlers, StatesGroup-инвентарь.
 6. **messaging** — push-subjects/streams/durable, JetStream vs core.
 7. **auth** — identity-link, admin-allowlist, initData.
-8. **observability** — метрики `tg_*`/`biz_tg_*`, trace, health.
+8. **observability** — health/ready-эндпоинты.
 9. **i18n** (опц.) — локали, движок, middleware.
 10. **config** (роллап) — required/optional env, секреты — собирает env'ы подключённых китов + решений 1–9.
 11. **runtime** (роллап) — polling/webhook, инстансы, какие подсистемы поднимаются, shutdown.
@@ -115,7 +115,7 @@ Anti-pattern'ы и enum'ы — даёшь как опции; имена env, sub
 - `storage` → `config § Required` (`REDIS_URL`), `runtime § Lifecycle` (`RedisEventIsolation` при webhook ≥2).
 - `messaging` → `config § Required` (`NATS_URL`, subjects/streams), `runtime § Entrypoints` (поднимаем ли notifications-runner), `dependencies § External` (NATS).
 - `auth` → `config § Required/Secrets` (`APP_ADMIN_IDS`, `BOT_TOKEN`).
-- `observability` → `config § Optional` (`OTEL_*`), `dependencies § kit'ы` (telemetry/bizmetric).
+- `observability` → `runtime § Lifecycle` (health/ready-эндпоинт httpkit при webhook/health-режиме).
 
 ## Завершение сессии
 

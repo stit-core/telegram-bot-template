@@ -11,7 +11,7 @@
 ## Reference (переезжает в проект)
 - [reference/architecture.md](reference/architecture.md) — слои фичи (гексагон), pkg-клиенты, composition root, граница с tgbotkit, non-goals.
 - [reference/dialog-mapping.md](reference/dialog-mapping.md) — как флоу диалога (свой или из стратегии-репо) ложится в код фичи; потребляет `scaffold`.
-- [reference/observability.md](reference/observability.md) — метрики/логи/трейсы апдейтов, health, чтение прод-логов.
+- [reference/observability.md](reference/observability.md) — структурные логи в stdout (logkit), trace-correlation, health.
 - [reference/release.md](reference/release.md) — релиз образа, handoff в infra, откат, версионирование.
 - [reference/ecosystem.md](reference/ecosystem.md) — карта экосистемы (стратегия-репо + код-репо + корп control-plane), граница tgbotkit↔шаблон, INFRA-HANDOFF.
 

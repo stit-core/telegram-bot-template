@@ -9,7 +9,7 @@ paths:
 # Фоновые апдейты (доставка)
 
 Push из событий бэкенда (NATS) и периодика **не приходят как обычный Update** — у них нет
-incoming-апдейта, поэтому они идут мимо outer-middleware (request_id, dedup, span, locale-resolve).
+incoming-апдейта, поэтому они идут мимо outer-middleware (request_id, dedup, locale-resolve).
 Эти грабли закрыты в `tgbotkit.Delivery`/`NotificationRunner`; шаблон пишет только бизнес-маппинг
 `event → сообщение/диалог`. Фоновые dialog-апдейты внутри kit идут через `propagate_event("update")`.
 

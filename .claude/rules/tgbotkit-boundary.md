@@ -10,7 +10,7 @@ paths:
 
 Директива: **вся инфра бота — в `pylibinfra[tgbotkit]`**, шаблон — чистая бизнес-логика +
 тонкая регистрация. `Bot`/`Dispatcher`/`RedisStorage`/middleware-цепочка/webhook|polling-runner/
-`setup_dishka`/`setup_dialogs`/error-handlers/observability/graceful-shutdown — **в kit'е, не тут**.
+`setup_dishka`/`setup_dialogs`/error-handlers/graceful-shutdown — **в kit'е, не тут**.
 Принцип «framework ≠ продукт»: kit знает aiogram, не знает твои диалоги/команды/флоу.
 
 ## Что шаблон делает здесь (и только это)
@@ -33,7 +33,7 @@ paths:
 
 - ❌ Собирать в шаблоне `Dispatcher`/`Bot`/`RedisStorage`/middleware/webhook-app/`setup_dialogs`/
   `setup_dishka`/error-handler-регистрацию — это поверхность kit'а.
-- ❌ Прямые инфра-пины в `pyproject` (aiogram/redis/httpx/otel) — всё транзитом `pylibinfra[tgbotkit]`.
+- ❌ Прямые инфра-пины в `pyproject` (aiogram/redis/httpx) — всё транзитом `pylibinfra[tgbotkit]`.
 - ❌ Дублировать/обходить дефолты kit'а вместо override через провайдер после `BotProvider`.
 - ❌ Тащить инфра-механику в `platform/` под видом «общего» (нет incoming-Update — это фон/kit).
 

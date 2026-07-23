@@ -24,7 +24,7 @@ description: Оформить INFRA-HANDOFF-блок для инфра-адми�
 
 | Класс | Примеры | Адресат |
 |---|---|---|
-| **env / секреты** | `BOT_TOKEN`, `WEBHOOK_SECRET`, `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_*` / `*_BASE_URL` именованных бэкендов, `OTEL_*`, `APP_ADMIN_IDS` | секрет → корп (Vault); тюнинг → проект (compose) |
+| **env / секреты** | `BOT_TOKEN`, `WEBHOOK_SECRET`, `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_*` / `*_BASE_URL` именованных бэкендов, `APP_ADMIN_IDS` | проект (compose env) |
 | **runtime-режим** | `BOT_MODE=polling↔webhook`, инстансы (webhook ≥2 + `RedisEventIsolation`), `set_webhook` single-flight, `allowed_updates` | проект |
 | **cross-service контракт** | новый NATS-subject/stream/durable для notification (бот ↔ бэкенд) | проект + владелец бэкенда |
 | **runtime-deps / ёмкость** | новая зависимость в `pyproject.toml`, ревизия `pylibinfra[tgbotkit]`, Redis/NATS capacity | проект |
@@ -36,10 +36,8 @@ description: Оформить INFRA-HANDOFF-блок для инфра-адми�
 
 ### 1. Классифицировать (таблица выше). Определить адресата
 
-- **корп** (out-of-band корп-админу): Vault-секрет (`BOT_TOKEN`/`WEBHOOK_SECRET`), OTLP/tenant, registry. Действие обычно `vault kv patch …`.
-- **проект** (`<client-org>/infra`): compose `environment:`, новый сервис-зависимость (Redis/NATS), scaling/режим, `make ship`.
+- **проект** (`<client-org>/infra`): env/секрет в compose `environment:` (`BOT_TOKEN`/`WEBHOOK_SECRET` и прочие значения кладутся здесь, конфиг через env), новый сервис-зависимость (Redis/NATS), scaling/режим, `make ship`.
 - **`pylibinfra`-мейнтейнер**: новая инфра-механика — PR в `tgbotkit` (по образцу `/add-kit` / правки существующего kit'а). Шаблон при этом может временно нести механику локально и вынести её PR'ом (см. ARCHITECTURE §16).
-- Часто **оба** (новый required env: значение кладёт корп в Vault / проект в compose).
 
 ### 2. Сформировать блок
 
@@ -48,13 +46,13 @@ description: Оформить INFRA-HANDOFF-блок для инфра-адми�
 WHAT   <имя/тип, default, required?>
 WHY    <фича/причина — коммит/план-атом>
 ACTION <конкретное действие инфра-стороны / суть PR в tgbotkit>
-WHO    <корп | проект | оба | pylibinfra>
+WHO    <проект | pylibinfra>
 DECIDE <нужно решение (значение/выбор) или «дефолт N ок?»>
 RISK   <последствие бездействия>
 ===
 ```
 
-Конкретно. `WHAT: env BOT_MODE, default polling, required в проде=webhook` — годится. `WHAT: что-то с режимом` — нет. Значение секрета **не** писать (только имя ключа + «нужен»; `.claude/rules/env-local.md`).
+Конкретно. `WHAT: env BOT_MODE, default polling, required в проде=webhook` — годится. `WHAT: что-то с режимом` — нет. Значение секрета **не** писать (только имя ключа + «нужен»; значения секретов не эхо-ить и не коммитить, в `.env.example` — только имена).
 
 Для механики: `WHAT: новый outer-middleware rate-limit на message+DIALOG_EVENT_NAME`, `ACTION: PR в pylibinfra/tgbotkit (middleware-цепочка), новая точка расширения ThrottleConfig`, `WHO: pylibinfra`.
 
@@ -66,7 +64,7 @@ RISK   <последствие бездействия>
 
 ### 4. Граница
 
-Не выполняй `vault kv patch` / `make ship` / `ssh <vps>` / правки чужого репо / merge PR в `pylibinfra`. Роль — сформировать и отдать сообщение. Дальше — корп/проектная/мейнтейнер-сторона.
+Не выполняй `make ship` / `ssh <vps>` / правки чужого репо / merge PR в `pylibinfra`. Роль — сформировать и отдать сообщение. Дальше — проектная/мейнтейнер-сторона.
 
 ## Anti-patterns
 
@@ -75,5 +73,5 @@ RISK   <последствие бездействия>
 - ❌ «Допишу на релизе» — release агрегирует уже записанное; не записал в `**Infra impact.**` → потеряно.
 - ❌ Значение секрета (`BOT_TOKEN`/`WEBHOOK_SECRET`) в блоке/чате (только имя ключа).
 - ❌ Размытый WHAT/ACTION без конкретики — админ не примет решение.
-- ❌ Самому патчить Vault/деплоить/мержить PR в pylibinfra — чужая зона, чужие креды.
+- ❌ Самому деплоить/мержить PR в pylibinfra — чужая зона, чужие креды.
 - ❌ Гнать блок на не-инфра-правку (шум обесценивает сигнал).

@@ -1,4 +1,4 @@
-.PHONY: help setup fmt fmt-check lint typecheck test test-integration test-cover check run status logs validate-stack-docs release lock sync
+.PHONY: help setup fmt fmt-check lint typecheck test test-integration test-cover check run status validate-stack-docs release lock sync
 
 # Тонкий словарь verbs (зеркало go-backend-template), реализация делегируется uv.
 # Канонический гейт перед claim «готово»/push — `make check`.
@@ -58,9 +58,6 @@ run: ## локальный polling-бот (нужен BOT_TOKEN; логи в std
 ##@ INTEL
 status: ## сводка состояния репо (ветка/drift/план/гейт) — A='--full'
 	@bash scripts/status.sh $(A) 2>/dev/null || { echo "branch: $$(git branch --show-current)"; git status -s; }
-
-logs: ## прод-логи через корп-Loki (A='query --service telegram-bot --since 1h')
-	@bash scripts/tools/logs.sh $(A)
 
 validate-stack-docs: ## проверить целостность docs/stack/* (вход de-template)
 	@bash scripts/validate-stack-docs.sh

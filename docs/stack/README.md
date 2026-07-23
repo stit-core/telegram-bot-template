@@ -20,8 +20,8 @@
 | `backends` | `backends.md` | HTTP-бэкенды (`pkg/http_client`): internal/external, base_url, именованные клиенты, идемпотентность |
 | `messaging` | `messaging.md` | NATS-subjects (consumed подписчиками), JetStream, доставка, идемпотентность |
 | `auth` | `auth.md` | identity (`BotIdentity`), роли, admin-allowlist, identity-link к бэкенду |
-| `observability` | `observability.md` | telemetry-режим, resource attrs, biz-метрики, trace-points, health |
-| `config` | `config.md` | required/optional env, секреты (Vault-класс), валидация, инвентарь `*Config` |
+| `observability` | `observability.md` | логи (logkit → stdout), trace-correlation, биз-логи, health |
+| `config` | `config.md` | required/optional env, секреты (через env), валидация, инвентарь `*Config` |
 | `dependencies` | `dependencies.md` | пин `pylibinfra[tgbotkit]`, kit'ы, внешние runtime-deps, ёмкость |
 | `i18n` *(опц.)* | `i18n.md` | каталог переводов, дефолт-локаль, resolver, `.ftl`-ресурсы |
 

@@ -63,14 +63,14 @@ description: Развернуть форк telegram-bot-template в самост
 
 ### A.3 `.env.example`
 
-Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `*_BASE_URL`/`HTTPCLIENT_BACKENDS` при нескольких бэкендах), `OTEL_*`, `APP_ADMIN_IDS`, `BOT_I18N_*`. Секреты — только имена ключей (значения не коммить; `.claude/rules/env-local.md`).
+Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `*_BASE_URL`/`HTTPCLIENT_BACKENDS` при нескольких бэкендах), `APP_ADMIN_IDS`, `BOT_I18N_*`. Секреты — только имена ключей (значения не коммить; rule `infra-impact`).
 
 ### A.4 Strip шаблонной меты
 
 - Удали `docs/getting-started.md` ([META] «как форкнуть шаблон»).
 - `docs/contributing.md` ([META] про `.claude`-систему) — **оставь** (система наследуется форком); переформулируй «шаблон» → имя проекта при желании.
 - Сбрось `.claude/plans/roadmap.md` к пустому fork-start (шапка + пустые `## Active`/`## Backlog`).
-- `docs/reference/*` (architecture/dialog-mapping/observability/release/ecosystem) — **оставь** (наследуется форком; reference переезжает в проект); `getting-started.md` удаляется, см. выше.
+- `docs/reference/*` (architecture/dialog-mapping/release/ecosystem) — **оставь** (наследуется форком; reference переезжает в проект); `getting-started.md` удаляется, см. выше.
 
 ### A.5 Prune reference-фич
 

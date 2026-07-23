@@ -10,7 +10,7 @@ paths:
 
 # Infra-impact
 
-Репо останавливается на image-in-registry; деплой, env и секреты — корп-Vault + проектный infra.
+Репо останавливается на image-in-registry; деплой, env и секреты — проектный infra (compose env).
 Изменение, **требующее действия инфра-стороны**, молча разъедется с прод-окружением, если его не
 зафиксировать. Процедура и формат блока — skill `infra-handoff` (это soft-механизм: правило + skill,
 гарантия — в твоей дисциплине).
@@ -22,7 +22,7 @@ paths:
 
 | Класс | Триггер | Кому |
 |---|---|---|
-| **Env/секреты** | новый/изменённый required env (`BOT_*`/`APP_*`/`REDIS_URL`/`NATS_*`/`HTTPCLIENT_*`/`OTEL_*`), читаемый приложением; новый required Vault-секрет (`BOT_TOKEN`/`BOT_WEBHOOK_SECRET`-класс) | корп (Vault) + проект (compose env) |
+| **Env/секреты** | новый/изменённый required env (`BOT_*`/`APP_*`/`REDIS_URL`/`NATS_*`/`HTTPCLIENT_*`), читаемый приложением; новый required секрет (`BOT_TOKEN`/`BOT_WEBHOOK_SECRET`-класс) | проект (compose env) |
 | **Webhook/runtime-режим** | `BOT_MODE` polling↔webhook, `BOT_WEBHOOK_*` (base_url/path/secret), число инстансов, graceful-параметры | проект (ingress/TLS, ≥2 инстанса, single-flight set_webhook) |
 | **Cross-service контракт** | новый/изменённый NATS `stream`/`subject`/`durable` для событий бэкенда; breaking-изменение payload `deliver_*` | проект + владелец события |
 | **Runtime-deps/ёмкость** | новая внешняя зависимость (включить JetStream, новый бэкенд `*_BASE_URL`); смена `pylibinfra`-ревизии в `pyproject`; изменения Dockerfile (база/extra) | проект |
@@ -45,8 +45,8 @@ code-default тюнинг без нового обязательного ENV.
   переменной, дефолт, required-флаг, точное действие, адресат (корп vs проектный infra).
 - ❌ Молча закоммитить required env / webhook-переключение / cross-service-subject без блока.
 - ❌ Откладывать «на релиз» — там агрегируется уже записанное; не записал → потерял.
-- ❌ Самому `vault kv patch`/`make ship`/`ssh`/`set_webhook` — не зона репо.
-- ❌ **Значение секрета** в блок/чат — только имя ключа + факт «нужен» (rule `env-local`).
+- ❌ Самому `make ship`/`ssh`/`set_webhook` — не зона репо.
+- ❌ **Значение секрета** в блок/чат — только имя ключа + факт «нужен» (значения секретов не коммить и не эхо-ить; в `.env.example` — только имена).
 - Новая инфра-**механика** (а не значение) — это вообще не правка шаблона, а PR в `tgbotkit`
   (rule `tgbotkit-boundary`), тоже через `infra-handoff`.
 

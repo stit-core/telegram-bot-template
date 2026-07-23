@@ -37,9 +37,9 @@ Pre-flight (до команды): зелёный `make check` + startup-smoke (`
 ## Handoff (НЕ в этом репо)
 
 `make release` печатает `=== INFRA HANDOFF ===`: `bot_tag → <v>`; накопленные `**Infra impact.**` из
-активных секций `.claude/plans/roadmap.md` (rule `infra-impact`); действия инфра-стороны — корп:
-`vault kv patch …/meta bot_tag=<v>`; проект: `<org>/infra` → `make ship`. Vault/`make ship`/`ssh`
-отсюда **не выполняются** — оператор передаёт блок out-of-band.
+активных секций `.claude/plans/roadmap.md` (rule `infra-impact`); действия инфра-стороны: пин образа
+(`bot_tag=<v>`) в конфиге деплой-репо `<org>/infra` → `make ship`. `make ship`/`ssh` отсюда
+**не выполняются** — оператор передаёт блок out-of-band.
 
 ## Verify (в infra-репо)
 
@@ -48,7 +48,7 @@ version=<v> commit=<sha>`.
 
 ## Откат
 
-Полностью в infra-репо: `vault kv patch …/meta bot_tag=<предыдущий>` → `make ship`. ⚠️ Откат образа
+Полностью в infra-репо: пин `bot_tag=<предыдущий>` в конфиге деплой-репо → `make ship`. ⚠️ Откат образа
 **не откатывает удалённый State**: если в релизе вырезали живой State, dialog-stack юзеров в Redis
 ссылается на исчезнувший State (`UnknownState`) — откат их не «вернёт». Поэтому удаление State —
 всегда через `state-migration`, не «откатим если что».

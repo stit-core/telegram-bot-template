@@ -16,7 +16,7 @@ self-hosted = форк `<org>/infra`). Этот шаблон — **фронте�
    <org>/strategy (← business-strategy-template)  — design-time SoT: дизайн диалогов бота
         │ side-input: telegram-bot-flow/<surface>/ читают /dialog-deep-dive + /scaffold (рантайм не зависит)
         ▼
-   ЭТОТ РЕПО ◄──контракт (OTLP, registry, secrets)── corp-infra-template (corp control plane)
+   ЭТОТ РЕПО ◄──контракт (registry образов)── corp-infra-template (corp control plane)
         │ ──build+push image──► git.${DOMAIN}/<org>/bot
         │                                   │
    pylibinfra (kit'ы)                       ▼
@@ -35,10 +35,10 @@ identity-link).
   tgbotkit + aiogram + aiogram_dialog + fluent.runtime; остальная инфра — dishka/redis/httpx/otel/
   fastapi/nats — транзитивом). Ноль прямых инфра-пинов. Пинится по git-ref (`[tool.uv.sources]`),
   как go-сервис на `go.mod`-версию.
-- **Зависит от:** `corp-infra-template` (контракт OTLP-endpoint, registry, secrets-класс);
+- **Зависит от:** `corp-infra-template` (контракт registry образов);
   `git.${DOMAIN}` (push images); продуктовые бэкенды (`HTTPCLIENT_*`, NATS-stream).
-- **Используется:** `<org>/infra` (форк `project-infra-template-compose`) — пуллит образ через
-  `vault kv patch …/meta bot_tag=<tag>` + `make ship` на проектной VPS.
+- **Используется:** `<org>/infra` (форк `project-infra-template-compose`) — пуллит образ, пиня тег
+  (`bot_tag=<tag>`) в конфиге деплой-репо + `make ship` на проектной VPS.
 - **Зависит (design-time) от:** `<org>/strategy` (форк `business-strategy-template`) — слой
   `telegram-bot-flow/<surface>/`. `/dialog-deep-dive` и `/scaffold` читают его при разработке;
   рантайм-образ от стратегии не зависит (это source-of-truth проектирования, не deploy-звено).
@@ -75,14 +75,14 @@ generic-обёртка над BgManager, новый error-handler-тип) — э
 
 ## Self-hosted путь
 
-Эндпоинты (`vault.${DOMAIN}`, `otel.${DOMAIN}`, `git.${DOMAIN}`) на managed-пути указывают на
-хостинг stit (`*.stit.tech`); на self-hosted — на ваш форк `corp-infra-template`. Адреса задаются
-через env (`OTEL_EXPORTER_OTLP_ENDPOINT`, registry-host) — архитектура кода не меняется, меняется
-только хост. Вендор-лока нет.
+Эндпоинты (`git.${DOMAIN}` registry, адреса бэкендов/Redis/NATS) на managed-пути указывают на
+хостинг stit (`*.stit.tech`); на self-hosted — на вашу инфру. Всё задаётся через env (registry-host,
+`HTTPCLIENT_*`, `REDIS_URL`, `NATS_URL`) — архитектура кода не меняется, меняется только хост.
+Вендор-лока нет.
 
 ## Границы ответственности
 
-Этот репо STOP'ает на image-in-registry. Деплой-команды чужих репо (`make ship`, `ssh`,
-`vault kv patch`) отсюда **не запускаются**. Инфра-поверхность (env/секрет/webhook/cross-service
+Этот репо STOP'ает на image-in-registry. Деплой-команды чужих репо (`make ship`, `ssh`)
+отсюда **не запускаются**. Инфра-поверхность (env/секрет/webhook/cross-service
 NATS-subject/runtime-dep) фиксируется INFRA-HANDOFF-блоком — см. `.claude/rules/infra-impact.md` и
 skill `infra-handoff`. Деплой — [release.md](release.md) → handoff в `<org>/infra`.

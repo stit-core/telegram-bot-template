@@ -2,7 +2,7 @@
 
 Тонкий шаблон Telegram-бота stit: **чистая бизнес-логика** на `aiogram` 3.28 + `aiogram_dialog`
 2.6 + `dishka` поверх `pylibinfra[tgbotkit]`. Вся инфра бота (Bot/Dispatcher/RedisStorage,
-middleware, webhook/polling runner, dishka-setup, error-UX, метрики, generic-механика
+middleware, webhook/polling runner, dishka-setup, error-UX, структурные логи, generic-механика
 i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не здесь. В шаблоне — фичи
 (диалоги/usecase/ports/policy/state + `infra/`-реализации портов), клиенты API
 (`pkg/http_client`), контент (`.ftl`), регистрация в точки расширения kit'а.
@@ -53,7 +53,7 @@ features-ориентированный — фича `features/<feature>/{dialog
 | Вход дизайна из стратегии (`<org>/strategy`): слой `telegram-bot-flow` (фичи: dialog/window/use-case + сквозные command/notification) → карта флоу | skill `/dialog-deep-dive` (транслятор) + `docs/reference/dialog-mapping.md` + `ecosystem.md` |
 | State/Redis: JSON-сериализуемость, `with_destiny`, TTL, эволюция StatesGroup | rules `storage-serialization`, `state-lifecycle` + skill `/state-migration` |
 | Фоновые апдейты (notifications/jobs), `BgManager`-грабли | rule `background-updates` |
-| Observability (`tg_*`/`biz_tg_*`, трейс, health) | `docs/reference/observability.md` + skill `/query-logs` + rule `env-local` |
+| Observability (структурные логи, trace-correlation, health) | `docs/reference/observability.md` |
 | Release (образ, handoff, откат) | `docs/reference/release.md` + skill `/release` |
 | Экосистема, граница tgbotkit↔шаблон, INFRA-HANDOFF | `docs/reference/ecosystem.md` + rule `tgbotkit-boundary` + skill `/infra-handoff` |
 | Тесты (BotClient, фейки, маркеры) | rule `tests-pipeline` |

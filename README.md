@@ -6,7 +6,7 @@
 
 Шаблон Telegram-бота экосистемы stit: aiogram 3.28 + aiogram-dialog 2.6 + dishka, поверх
 [`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra) (Bot/Dispatcher,
-RedisStorage, middleware, webhook/polling runner, error-UX, метрики, i18n/notifications/
+RedisStorage, middleware, webhook/polling runner, error-UX, структурные логи, i18n/notifications/
 payments/webapp). Observability, тесты и релиз — встроены; вы пишете фичи (диалоги), не обвязку.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-2563eb)](LICENSE)
@@ -14,7 +14,7 @@ payments/webapp). Observability, тесты и релиз — встроены; 
 [![Python](https://img.shields.io/badge/Python-≥3.12-3776AB)](#что-внутри)
 [![aiogram](https://img.shields.io/badge/aiogram-3.28_+_aiogram__dialog_2.6-0088cc)](#что-внутри)
 [![DI](https://img.shields.io/badge/DI-dishka-8b5cf6)](#что-внутри)
-[![Observability](https://img.shields.io/badge/observability-OTel_by_default-22c55e)](#что-внутри)
+[![Observability](https://img.shields.io/badge/observability-structured_logs-22c55e)](#что-внутри)
 
 </div>
 
@@ -32,14 +32,13 @@ telegram-bot-template (<org>/<bot>)  ← вы здесь   ──► stit-core/p
 project-infra-template-compose (<org>/infra)   ← деплой образа
 ```
 
-Корп control-plane (registry, OTLP-ingest, Vault) —
+Корп control-plane (registry образов) —
 [`corp-infra-template`](https://git.stit.tech/stit-core/corp-infra-template). Подробнее —
 [`docs/reference/ecosystem.md`](docs/reference/ecosystem.md).
 
-**Два пути — без вендор-лока.** Зависимости от control-plane (registry, OTLP-ingest, Vault)
-указывают либо на наш **managed** (`*.stit.tech`), либо на **ваш self-hosted** из
-[`corp-infra-template`](https://git.stit.tech/stit-core/corp-infra-template). Эндпоинты
-конфигурируются через env, не зашиты; архитектура одинакова.
+**Два пути — без вендор-лока.** Registry и адреса внешних сервисов (бэкенды, Redis, NATS) указывают
+либо на наш **managed** (`*.stit.tech`), либо на **ваш self-hosted**. Всё конфигурируется через env,
+не зашито в код; архитектура одинакова.
 
 ## Использовать как шаблон
 
@@ -74,8 +73,8 @@ claude                 # → /init-service
 - **DI** — `dishka`. Один runtime-процесс: диалоги + notifications-подписчики + jobs в одном боте
   (отдельного worker-образа нет, бот stateless — state в Redis).
 - **Платформа** — [`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra):
-  Bot/Dispatcher/RedisStorage, middleware, webhook/polling runner, error-handlers, OTel, generic-
-  механика i18n/notifications/payments/webapp.
+  Bot/Dispatcher/RedisStorage, middleware, webhook/polling runner, error-handlers, структурные логи,
+  generic-механика i18n/notifications/payments/webapp.
 - **Дизайн флоу** — артефакты в соседнем стратегии-репо; маппинг в код —
   [`docs/reference/dialog-mapping.md`](docs/reference/dialog-mapping.md).
 - **Тесты** — unit, flow (`BotClient` + фейк порта), integration (testcontainers redis/nats),

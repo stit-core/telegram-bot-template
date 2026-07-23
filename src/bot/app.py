@@ -14,13 +14,11 @@ from __future__ import annotations
 import redis.asyncio as aioredis
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from dishka.integrations.aiogram import AiogramProvider
-from opentelemetry.trace import Tracer
 from pylibinfra.cachekit import Cache, CachekitProvider
 from pylibinfra.httpclient import ApiClientsProvider
 from pylibinfra.logkit import LogkitProvider
 from pylibinfra.natskit import Config as NatsConfig
 from pylibinfra.natskit import NatsProvider, StreamBus
-from pylibinfra.telemetry import TelemetryProvider
 from pylibinfra.tgbotkit import (
     BotProvider,
     BotRunner,
@@ -79,7 +77,6 @@ class ExtensionProvider(Provider):
 def build_container() -> AsyncContainer:
     return make_async_container(
         # ── инфра (pylibinfra) ──
-        TelemetryProvider(),
         CachekitProvider(),
         ApiClientsProvider(),
         NatsProvider(),
@@ -104,8 +101,7 @@ def build_container() -> AsyncContainer:
 
 async def run() -> None:
     container = build_container()
-    # резолв Tracer триггерит telemetry.init (выставляет глобальные OTel-providers).
-    # container.close() (его зовёт runner на shutdown) сделает telemetry-flush.
-    await container.get(Tracer)
+    # runner владеет жизненным циклом: на shutdown он зовёт container.close()
+    # (закрытие Bot-session, NATS, Redis-пулов).
     runner = await container.get(BotRunner)
     await runner.run()

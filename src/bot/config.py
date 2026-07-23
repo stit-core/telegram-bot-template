@@ -2,8 +2,8 @@
 
 Асимметрия dishka: Provider'ы китов НЕ provide'ят свои Config (чтобы не навязывать
 источник) — их регистрирует caller. AppConfigProvider собирает ВСЕ *Config в одном
-месте: kit'овые (telemetry/logkit/cachekit/httpclient/natskit/tgbotkit) + AppConfig.
-Все они читают env через pydantic-settings; на проде секреты подаёт vault-agent в env.
+месте: kit'овые (logkit/cachekit/httpclient/natskit/tgbotkit) + AppConfig.
+Все они читают env через pydantic-settings; секреты подаются обычными env.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from pylibinfra.httpclient import Config as HttpConfig
 from pylibinfra.logkit import Config as LogConfig
 from pylibinfra.logkit import RedactConfig
 from pylibinfra.natskit import Config as NatsConfig
-from pylibinfra.telemetry import Config as TelConfig
 from pylibinfra.tgbotkit import Config as BotConfig
 from pylibinfra.tgbotkit import I18nConfig
 
@@ -39,7 +38,6 @@ _I18N_RESOURCES = [
     "booking.ftl",
 ]
 _DEFAULT_LOCALE = "ru"
-_DEFAULT_SERVICE_NAME = "telegram-bot"
 
 
 class AppConfig(BaseSettings):
@@ -62,11 +60,6 @@ class AppConfigProvider(Provider):
     @provide
     def app(self) -> AppConfig:
         return AppConfig()
-
-    @provide
-    def telemetry(self) -> TelConfig:
-        # service_name у telemetry обязателен — даём фолбэк, env (OTEL_SERVICE_NAME) приоритетнее.
-        return TelConfig(service_name=os.environ.get("OTEL_SERVICE_NAME", _DEFAULT_SERVICE_NAME))
 
     @provide
     def logging(self) -> LogConfig:
