@@ -77,7 +77,7 @@ async def test_register_routes_unknown_intent_to_app_ux() -> None:
     register_error_handlers(dp, AppErrorUX())
     cb = FakeCallback()
     event = _event(callback=cb, exception=UnknownIntent("stale"))
-    await dp.errors.trigger(event, bot=None)  # type: ignore[arg-type]
+    await dp.errors.trigger(event, bot=None)
     assert cb.answered == _STALE
 
 
@@ -86,5 +86,5 @@ async def test_register_routes_unknown_state_to_app_ux() -> None:
     register_error_handlers(dp, AppErrorUX())
     cb = FakeCallback()
     event = _event(callback=cb, exception=UnknownState("gone"))
-    await dp.errors.trigger(event, bot=None)  # type: ignore[arg-type]
+    await dp.errors.trigger(event, bot=None)
     assert cb.answered == _STALE

@@ -40,12 +40,15 @@
 
 ## Чистое ядро и anti-corruption
 
-`usecase`/`policy`/`state`/`dto` — **чистое ядро**: не импортит `httpx`/`aiogram`/`redis`/свой
-`infra/` напрямую (import-linter, контракт «чистое ядро»). Wire-модели pkg и `pylibinfra.httpclient`
-ядру разрешены — порт типизирован моделью pkg-клиента, поэтому `ProfileAPI` удовлетворяет порт
-**структурно**, без адаптера. Единственная точка anti-corruption — `usecase`: typed-ошибки
-httpclient (`NotFoundError`/`ConflictError`/`UnavailableError`) мапятся в sentinel'ы `errors.py`
-здесь, не в presentation.
+`usecase`/`policy`/`state`/`dto`/`ports`/`errors`/`views`/`adapters` — **чистое ядро**: не
+импортит `httpx`/`aiogram`/`redis`/свой `infra/` напрямую (import-linter, контракт «чистое
+ядро»). Wire-модели и typed-ошибки — язык портов, но только через `bot.pkg.http_client`
+(«одна дверь»: `pylibinfra.httpclient` вне pkg запрещён ruff banned-api); порт типизирован
+моделью pkg-клиента, поэтому `ProfileAPI` удовлетворяет порт **структурно**, без адаптера.
+Единственная точка anti-corruption — `usecase`: typed-ошибки HTTP-границы мапятся в sentinel'ы
+`errors.py` по канону «специфичные + catch-all» (`NotFoundError`/`ConflictError` → доменные,
+замыкающий `except ApiError` → `*Unavailable`), не в presentation. `views.error_text` отдаёт
+`.ftl`-ключ; рендер — `bot.shared.i18n.render` + `I18N_FORMAT_KEY` в getter/handler.
 
 `handlers`/`getters` **не зовут** `policy` (import-linter): доменное решение приходит результатом
 usecase. `policy` возвращает `Decision` (общий `shared/decision.py`), usecase решает, бросать ли
@@ -58,18 +61,25 @@ HTTP к бэкендам — только через pkg-клиенты, не `h
 ```
 http_client/
 ├── __init__.py   фасад: Provider + CORE_BACKEND
+├── errors.py     таксономия typed-ошибок (реэкспорт кита) — дверь фич к ошибкам бэкенда
+├── wire.py       WireModel — база wire-моделей (extra="forbid", frozen, без бизнес-дефолтов)
+├── idempotency.py  idempotency_key(op, *parts) — канон ASCII-ключа (sha256)
+├── api.py        JsonApi — Protocol поверхности ApiClient (клиенты и тест-фейк зависят от него)
 ├── provider.py   InternalApiProvider (Scope.APP): API-классы поверх именованного ApiClient «core»
-├── internal/     наши бэкенды — API-классы (пути + pydantic wire-модели) поверх kit-ApiClient
-│   ├── profile.py / booking.py / payments.py — ProfileAPI/BookingAPI/PaymentsAPI + wire-модели
-│   └── codec.py  parse() — raw → pydantic
+├── internal/     наши бэкенды — API-классы (пути + wire-модели, декод через model=)
+│   └── profile.py / booking.py / payments.py — ProfileAPI/BookingAPI/PaymentsAPI + wire-модели
 └── external/     сторонние API (.gitkeep)
 ```
 
 Топология реальная: один internal-бэкенд «core» (profile/booking/payments — один base_url
-`HTTPCLIENT_*`); имя бэкенда = ключ `BackendsConfig` = имя circuit-breaker'а. `pkg` не знает про
-`features`/`platform`/`aiogram` (import-linter, контракт «pkg не знает про бот»). Новый internal-
-бэкенд: модуль в `internal/`, имя-константа, `@provide` в `provider.py`, запись в `BackendsConfig`
-(`config.py`). Процедура — `scaffold backend-port`.
+`HTTPCLIENT_*`); имя бэкенда = ключ `BackendsConfig` = имя circuit-breaker'а. Декларация
+бэкенда — `BackendConfig` с обязательным `base_url`: незаполненный валит контейнер на старте
+(fail-fast, ловится composition-тестом), глобальные `HTTPCLIENT_*` в декларации других бэкендов
+не наследуются. Мутации ретраятся kit'ом только с `Idempotency-Key`; ключ клиент считает сам
+(`idempotency.idempotency_key`). `pkg` не знает про `features`/`platform`/`aiogram`
+(import-linter, контракт «pkg не знает про бот»). Новый internal-бэкенд: модуль в `internal/`,
+имя-константа, `@provide` в `provider.py`, `BackendConfig` в `config.py`. Процедура —
+`scaffold backend-port`.
 
 ## Composition root (`src/bot/app.py`)
 
@@ -129,12 +139,15 @@ request_id/локаль/грабли BgManager закрыты в `tgbotkit.Deliv
 слоем, а улучшения едут всем ботам сразу. Инвариант для агента — `CLAUDE.md § Стиль кода`,
 rule `tgbotkit-boundary`.
 
-## import-linter (5 контрактов)
+## import-linter (7 контрактов) + banned-api
 
 `importlinter.toml`: (1) слои внутри фичи (DIP, стрелка внутрь); (2) независимость фич (cross-feature
 только через `adapters.py`/`provider.py`); (3) чистое ядро не импортит инфру напрямую
 (`httpx`/`aiogram`/`redis`/свой `infra/`); (4) `handlers`/`getters` без `policy`; (5) `pkg` не знает
-про `features`/`platform`/`aiogram`.
+про `features`/`platform`/`aiogram`; (6) `httpx` — только в `pkg`; (7) presentation
+(`dialogs`/`getters`/`handlers`) не ходит в `pkg` (данные — через usecase). «Одна дверь к бэкенду»
+(`pylibinfra.httpclient` только через `bot.pkg.http_client`) — ruff banned-api TID251
+(import-linter не запрещает подпакеты внешних пакетов).
 
 ## Non-goals (осознанно не делаем)
 

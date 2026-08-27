@@ -125,9 +125,10 @@ class Profile(StatesGroup):
     VIEW = State()
     EDIT_NAME = State()
 
+
 # features/profile/dialogs.py
 view_window = Window(
-    Format("👤 <b>{name}</b> {badge}\n✉️ {email}\n{status}"),   # динамика ← getter
+    Format("👤 <b>{name}</b> {badge}\n✉️ {email}\n{status}"),  # динамика ← getter
     Row(
         SwitchTo(I18NFormat("profile-edit-name"), id="edit_name", state=ProfileSG.EDIT_NAME),
         Cancel(I18NFormat("common-back")),
@@ -137,8 +138,12 @@ view_window = Window(
 )
 edit_name_window = Window(
     I18NFormat("profile-enter-name"),
-    TextInput(id="name_input", type_factory=str,
-              on_success=handlers.on_save_name, on_error=handlers.on_name_error),
+    TextInput(
+        id="name_input",
+        type_factory=str,
+        on_success=handlers.on_save_name,
+        on_error=handlers.on_name_error,
+    ),
     Back(I18NFormat("common-back")),
     state=ProfileSG.EDIT_NAME,
 )
@@ -148,27 +153,35 @@ profile_dialog = Dialog(view_window, edit_name_window)
 ```python
 # features/profile/getters.py — данные окна VIEW (read через usecase)
 @inject
-async def profile_getter(uc: FromDishka[ProfileUsecase], identity: FromDishka[BotIdentity],
-                         **kwargs: Any) -> dict[str, Any]:
+async def profile_getter(
+    uc: FromDishka[ProfileUsecase], identity: FromDishka[BotIdentity], **kwargs: Any
+) -> dict[str, Any]:
     try:
-        view = await uc.view(identity)                  # usecase, не pkg-клиент
+        view = await uc.view(identity)  # usecase, не pkg-клиент
     except errors.ProfileError as exc:
         return {"name": "—", "email": "", "badge": "", "status": views.error_text(exc)}  # мягко
     data = views.to_window(view)
     data["status"] = ""
-    return data                                         # все ключи Format заполнены
+    return data  # все ключи Format заполнены
+
 
 # features/profile/handlers.py — реакция в окне EDIT_NAME
 @inject
-async def on_save_name(message: Message, widget: ManagedTextInput[str], manager: DialogManager,
-                       value: str, *, uc: FromDishka[ProfileUsecase],
-                       identity: FromDishka[BotIdentity]) -> None:
+async def on_save_name(
+    message: Message,
+    widget: ManagedTextInput[str],
+    manager: DialogManager,
+    value: str,
+    *,
+    uc: FromDishka[ProfileUsecase],
+    identity: FromDishka[BotIdentity],
+) -> None:
     try:
-        await uc.rename(identity, value)                # мутация ← value виджета
+        await uc.rename(identity, value)  # мутация ← value виджета
     except errors.ProfileError as exc:
-        await message.answer(views.error_text(exc))     # ошибка → текст, окно не падает
+        await message.answer(views.error_text(exc))  # ошибка → текст, окно не падает
         return
-    await manager.switch_to(ProfileSG.VIEW)             # успех → назад (перерисует getter)
+    await manager.switch_to(ProfileSG.VIEW)  # успех → назад (перерисует getter)
 ```
 
 Маппинг по элементам:

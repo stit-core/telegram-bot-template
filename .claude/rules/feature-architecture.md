@@ -20,10 +20,11 @@ paths:
 (контракт «Слои внутри фичи», `importlinter.toml`); `getters` и `handlers` — один слой,
 **друг друга не импортят**. `infra/` в слоях не участвует — его импортирует только `provider.py`.
 
-- **PURE-ядро** (`usecase` / `policy` / `state` / `dto` / `errors` / `ports`) не импортит
-  `aiogram` / `aiogram_dialog` / `httpx` / `redis` / свой `infra/` (контракт «Чистое ядро»).
-  Wire-модели pkg-клиентов (`bot.pkg.*`) и typed-ошибки `pylibinfra.httpclient` ядру
-  **разрешены** — это язык портов; запрещён сырой транспорт. `state.py` тянет
+- **PURE-ядро** (`usecase` / `policy` / `state` / `dto` / `errors` / `ports` / `views` /
+  `adapters`) не импортит `aiogram` / `aiogram_dialog` / `httpx` / `redis` / свой `infra/`
+  (контракт «Чистое ядро»). Wire-модели и typed-ошибки pkg (`bot.pkg.http_client.*`) ядру
+  **разрешены** — это язык портов; `pylibinfra.httpclient` напрямую запрещён везде, кроме
+  pkg/composition root (ruff banned-api — «одна дверь»). `state.py` тянет
   `aiogram.StatesGroup` **только** транзитом через `platform/dialogs/states` — это
   архитектура, не утечка.
 - **I/O — это usecase, не метод модели.** Нужны порт/сеть/кэш → метод `*Usecase`. Чистое правило
@@ -33,11 +34,15 @@ paths:
   результат-данные (`BookingUsecase.set_guests → GuestsStep(draft, address_required)`) и никогда
   не трогает `DialogManager`/экраны. Проверка доступа — `policy` внутри usecase (кидает
   Forbidden-ошибку; handler/getter её ловит).
-- **Anti-corruption — в usecase, единственная точка маппинга:** typed-ошибки httpclient
-  (`NotFoundError`/`ConflictError`/`UnavailableError`) → sentinel'ы `errors.py`; где нужно —
-  wire-модель → доменный DTO (payments: `Offer` → `Order(Money)`).
-- **`views.py` — единственное место** превращения доменной ошибки в user-текст (`error_text`);
-  не-наша ошибка пробрасывается в recovery-middleware kit'а.
+- **Anti-corruption — в usecase, единственная точка маппинга:** typed-ошибки HTTP-границы
+  (`bot.pkg.http_client.errors`) → sentinel'ы `errors.py` по канону «специфичные + catch-all»:
+  `NotFoundError`/`ConflictError` → доменные, замыкающий `except ApiError` → `*Unavailable`
+  (ничего не протекает в recovery); где нужно — wire-модель → доменный DTO (payments:
+  `Offer` → `Order(Money)`).
+- **`views.py` — единственное место** маппинга доменной ошибки в сообщение: `error_text`
+  отдаёт **`.ftl`-ключ**, рендер — в presentation (`bot.shared.i18n.render` +
+  `I18N_FORMAT_KEY`), тексты — в `locales/` (ru/en); не-наша ошибка пробрасывается в
+  recovery-middleware kit'а.
 
 ## Порты и реализации (ports → pkg | infra)
 
@@ -46,14 +51,17 @@ paths:
   (структурная совместимость Protocol, mypy проверяет) — отдельный адаптер не нужен.
 - **HTTP-клиенты — `src/bot/pkg/http_client/`** (не сырой `httpx` в фиче): `internal/` — свой
   бэкенд (`profile.py: ProfileAPI` + wire-`User`; `booking.py: BookingAPI` +
-  `BookingConfirmation`; `payments.py: PaymentsAPI` + `Offer`/`Charge`; `codec.py: parse` —
-  `ValidationError` → `UnavailableError`); `external/` — клиенты сторонних API. Клиенты строятся
-  поверх `pylibinfra.httpclient.ApiClient` (типизированный JSON-слой: get/post/put/patch/delete
-  → декодированный JSON; typed-ошибки; Idempotency-Key). `provider.py`
+  `BookingConfirmation`; `payments.py: PaymentsAPI` + `Offer`/`Charge`); `external/` — клиенты
+  сторонних API. База пакета: `errors.py` — реэкспорт таксономии кита (дверь фич к ошибкам),
+  `wire.py: WireModel` — база wire-моделей (`extra="forbid"`, `frozen`, без бизнес-дефолтов),
+  `idempotency.py: idempotency_key(op, *parts)` — канон ASCII-ключа (sha256), `api.py: JsonApi`
+  — Protocol поверхности клиента (фейк реализует его без type: ignore). Клиенты строятся поверх
+  `pylibinfra.httpclient.ApiClient` через `model=` (декод прямо в wire-модель; несоответствие →
+  `ContractError`); мутации ретраятся kit'ом только с `Idempotency-Key`. `provider.py`
   (`InternalApiProvider`, `CORE_BACKEND = "core"`) берёт именованный клиент из реестра
-  `ApiClients.get(имя)`; имена и base_url — `BackendsConfig.backends` (`config.py`:
-  `BackendsConfig{core: HttpConfig()}`, env `HTTPCLIENT_*`). `pkg` не знает про
-  features/platform/aiogram (контракт «pkg не знает про бот»).
+  `ApiClients.get(имя)`; имена и base_url — `BackendsConfig.backends` (`config.py` собирает
+  `BackendConfig` с обязательным `base_url` — пустой валит старт, fail-fast). `pkg` не знает
+  про features/platform/aiogram (контракт «pkg не знает про бот»).
 - **Не-HTTP реализации портов — `features/<имя>/infra/`** (пример —
   `start/infra/store.py: CacheOnboardingStore` поверх cachekit).
 
@@ -81,4 +89,5 @@ paths:
 - Новый HTTP-вызов — метод pkg-клиента + respx-тест в `tests/pkg/`, не сырой `httpx` в фиче.
 - `policy`/`views`/валидаторы покрыты unit-тестами; flow — `dialog`-тестами (rule `tests-pipeline`).
 - Новая инфра-механика (middleware/runtime) — не сюда, а PR в `tgbotkit` (rule `tgbotkit-boundary`).
-- Перед claim «готово» — `make check` зелёный (ruff + import-linter (5 контрактов) + mypy + pytest).
+- Перед claim «готово» — `make check` зелёный (ruff + import-linter (7 контрактов) +
+  mypy src+tests + lock-check + pytest с полом покрытия).

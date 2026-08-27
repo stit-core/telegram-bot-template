@@ -1,4 +1,8 @@
-.PHONY: help setup doctor fmt fmt-check lint typecheck test test-integration test-cover check run status validate-stack-docs plan-check release lock sync
+.PHONY: help setup doctor fmt fmt-check lint typecheck test test-integration test-cover cover-check lock-check check run status validate-stack-docs plan-check release lock sync
+
+# Пол покрытия (branch) для канонического гейта; scope — весь src/bot: дилоги/провайдеры
+# исполняются flow/composition-тестами, отдельного исключения обвязки не требуется.
+COVER_FLOOR ?= 85
 
 # Тонкий словарь verbs (зеркало go-backend-template), реализация делегируется uv.
 # Канонический гейт перед claim «готово»/push — `make check`.
@@ -35,8 +39,8 @@ lint: ## ruff check + import-linter
 	uv run ruff check .
 	uv run lint-imports --config importlinter.toml
 
-typecheck: ## mypy src
-	uv run mypy src
+typecheck: ## mypy src + tests (тесты типизируются строго)
+	uv run mypy src tests
 
 test: ## быстрые тесты (без integration/e2e)
 	uv run pytest -m "not integration and not e2e" -q
@@ -44,14 +48,21 @@ test: ## быстрые тесты (без integration/e2e)
 test-integration: ## integration-тесты (нужен Docker; testcontainers redis/nats)
 	uv run pytest -m integration -q
 
-test-cover: ## тесты с покрытием
+test-cover: ## тесты с покрытием (информационно, без пола)
 	uv run pytest -m "not integration and not e2e" --cov=src/bot --cov-report=term-missing -q
 
-check: ## КАНОНИЧЕСКИЙ gate: fmt-check + lint + typecheck + test
+cover-check: ## тесты + пол покрытия COVER_FLOOR (гейт)
+	uv run pytest -m "not integration and not e2e" --cov=src/bot --cov-fail-under=$(COVER_FLOOR) -q
+
+lock-check: ## uv.lock не дрейфует от pyproject (аналог gen-check)
+	uv lock --check
+
+check: ## КАНОНИЧЕСКИЙ gate: fmt-check + lint + typecheck + lock-check + cover-check
 	@echo "→ ruff format --check"; $(MAKE) -s fmt-check
 	@echo "→ lint (ruff + import-linter)"; $(MAKE) -s lint
-	@echo "→ mypy"; $(MAKE) -s typecheck
-	@echo "→ pytest (not integration)"; $(MAKE) -s test
+	@echo "→ mypy (src + tests)"; $(MAKE) -s typecheck
+	@echo "→ uv lock --check"; $(MAKE) -s lock-check
+	@echo "→ pytest + cover-floor $(COVER_FLOOR)%"; $(MAKE) -s cover-check
 	@echo "✓ check clean"
 
 ##@ RUN

@@ -2,31 +2,34 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-from pylibinfra.httpclient import ApiClient
+from bot.pkg.http_client.api import JsonApi
+from bot.pkg.http_client.idempotency import idempotency_key
+from bot.pkg.http_client.wire import WireModel
 
-from bot.pkg.http_client.internal.codec import parse
 
-
-class BookingConfirmation(BaseModel):
+class BookingConfirmation(WireModel):
     confirmation_id: str
 
 
 class BookingAPI:
-    def __init__(self, api: ApiClient) -> None:
+    def __init__(self, api: JsonApi) -> None:
         self._api = api
 
     async def submit_booking(
         self,
         *,
+        draft_id: str,
         user_id: str,
         services: list[str],
         guests: int,
         address: str | None,
-        idempotency_key: str,
     ) -> BookingConfirmation:
-        # submit идемпотентен на бэкенде по Idempotency-Key — повтор не создаст дубль заказа
-        raw = await self._api.post(
+        # Ключ от (draft_id + содержимое): повтор «Подтвердить» не создаёт дубль заказа,
+        # а изменённый черновик того же визарда получает новый ключ (не 409 на бэкенде).
+        key = idempotency_key(
+            "booking-submit", draft_id, user_id, *services, str(guests), address or ""
+        )
+        return await self._api.post(
             "/v1/bookings",
             json={
                 "user_id": user_id,
@@ -34,6 +37,6 @@ class BookingAPI:
                 "guests": guests,
                 "address": address,
             },
-            idempotency_key=idempotency_key,
+            idempotency_key=key,
+            model=BookingConfirmation,
         )
-        return parse(BookingConfirmation, raw)

@@ -36,7 +36,8 @@ paths:
   зависимости через `FromDishka[...]`. Возврат — `dict` со **всеми** ключами, что читает `Format`
   (дефолты для каждого: пустая строка/`—`, иначе `KeyError` уронит рендер).
 - Доменную ошибку ловим **в getter** и кладём мягкий `status`/плейсхолдеры — окно не должно падать
-  в recovery (`error_text` из `views`).
+  в recovery. `views.error_text` отдаёт `.ftl`-ключ; рендер — `render(kwargs.get(I18N_FORMAT_KEY),
+  ключ)` из `bot.shared.i18n` (без i18n, как в тестах, показывается ключ).
 
 ## handler — реакции и навигация
 
@@ -56,8 +57,9 @@ paths:
   kwarg**, НЕ `FromDishka[DialogManager]`.
 - `/start` (и любой ре-вход в корень) — `mode=StartMode.RESET_STACK`: иначе стек копится до лимита
   100 → `DialogStackOverflow`.
-- Ошибку usecase превращаем в текст (`views.error_text`) и показываем без падения окна; не-наши
-  ошибки не глотаем.
+- Ошибку usecase превращаем в `.ftl`-ключ (`views.error_text`), рендерим
+  `render(manager.middleware_data.get(I18N_FORMAT_KEY), ключ)` и показываем без падения окна;
+  не-наши ошибки не глотаем.
 
 ## Чек
 

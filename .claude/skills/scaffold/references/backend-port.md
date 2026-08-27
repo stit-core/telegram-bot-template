@@ -1,6 +1,6 @@
 # scaffold › backend-port — pkg-клиент + порт фичи
 
-Добавляет фиче новый источник данных. HTTP живёт **не в фиче**, а в `src/bot/pkg/http_client/` (клиенты областей API поверх `pylibinfra.httpclient.ApiClient`); фича видит его через **порт** — Protocol в `ports.py`, типизированный wire-моделями pkg-клиента (имена методов порта = имена методов клиента), `provider.py` байндит порт → pkg-клиент **напрямую** (структурно, mypy проверяет). Anti-corruption — в **usecase**: единственная точка маппинга typed-ошибок kit'а (`NotFoundError`/`ConflictError`/`UnavailableError`) в sentinel'ы `errors.py` (+ wire→домен, где нужно). Границы enforce'ит import-linter («Чистое ядро», «pkg не знает про бот»). Соответствует rule `feature-architecture`.
+Добавляет фиче новый источник данных. HTTP живёт **не в фиче**, а в `src/bot/pkg/http_client/` (клиенты областей API поверх `pylibinfra.httpclient.ApiClient`); фича видит его через **порт** — Protocol в `ports.py`, типизированный wire-моделями pkg-клиента (имена методов порта = имена методов клиента), `provider.py` байндит порт → pkg-клиент **напрямую** (структурно, mypy проверяет). Anti-corruption — в **usecase**: единственная точка маппинга typed-ошибок HTTP-границы (`bot.pkg.http_client.errors`) в sentinel'ы `errors.py` по канону «специфичные + catch-all `ApiError`» (+ wire→домен, где нужно). Границы enforce'ит import-linter («Чистое ядро», «pkg не знает про бот»). Соответствует rule `feature-architecture`.
 
 ## Случаи (выбери)
 
@@ -29,37 +29,40 @@
 ## A. Метод pkg-клиента
 
 ### 1. Понять контракт
-Endpoint, метод, форма ответа, идемпотентность мутации (`Idempotency-Key`?). Коды ошибок мапит сам `ApiClient`: 404 → `NotFoundError`, 409 → `ConflictError`, прочие 4xx / 5xx-после-ретраев / transport / открытый breaker / не-JSON 2xx → `UnavailableError`.
+Endpoint, метод, форма ответа, идемпотентность мутации (`Idempotency-Key`?). Коды ошибок мапит сам `ApiClient`: 404 → `NotFoundError`, 409 → `ConflictError`, 401 → `AuthError`, 403 → `ForbiddenError`, 429 → `RateLimitedError` (+`retry_after`; подкласс `UnavailableError`), 400/422/прочие 4xx → `InvalidRequestError`, 5xx-после-ретраев / transport / открытый breaker → `UnavailableError`, не-JSON 2xx или несоответствие `model=` → `ContractError` (подкласс `UnavailableError`). Все классы — `bot.pkg.http_client.errors`; у каждого есть `method`/`path`/`status_code`/`retry_after`/`body_snippet`.
 
 ### 2. Wire-модель + метод клиента
-В существующий класс (`internal/profile.py: ProfileAPI` / `booking.py: BookingAPI` / `payments.py: PaymentsAPI`) или новый модуль `internal/<area>.py` (сторонний API — `external/<area>.py`). Ответ валидируй через `parse` (`internal/codec.py`: `ValidationError` → `UnavailableError` — ломаный контракт бэкенда = недоступность):
+В существующий класс (`internal/profile.py: ProfileAPI` / `booking.py: BookingAPI` / `payments.py: PaymentsAPI`) или новый модуль `internal/<area>.py` (сторонний API — `external/<area>.py`). Wire-модель наследует `WireModel` (`wire.py`: `extra="forbid"` — дрейф контракта ловится на границе; `frozen`; поля без бизнес-дефолтов). Декод — `model=` самого клиента (несоответствие → `ContractError`); клиент зависит от `JsonApi`-Protocol (`api.py`), не от kit-класса:
 
 ```python
 # pkg/http_client/internal/billing.py
-from pydantic import BaseModel
-from pylibinfra.httpclient import ApiClient
-
-from bot.pkg.http_client.internal.codec import parse
+from bot.pkg.http_client.api import JsonApi
+from bot.pkg.http_client.wire import WireModel
 
 
-class Balance(BaseModel):
+class Balance(WireModel):
     amount: int
-    currency: str = "XTR"
+    currency: str
 
 
 class BillingAPI:
-    def __init__(self, api: ApiClient) -> None:
+    def __init__(self, api: JsonApi) -> None:
         self._api = api
 
     async def get_balance(self, user_id: str) -> Balance:
-        raw = await self._api.get(f"/v1/balance/{user_id}")
-        return parse(Balance, raw)
+        return await self._api.get(f"/v1/balance/{user_id}", model=Balance)
 ```
 
-Мутация — `idempotency_key=` (ключ обязан быть **ASCII-safe**: кириллица в latin-1 HTTP-заголовке падает `UnicodeEncodeError` до запроса — хэшируй, как `ProfileAPI.rename_user`):
+Мутация — `idempotency_key=` считается **самим клиентом** каноном `idempotency.idempotency_key(op, *parts)` (sha256 → ASCII-safe: кириллица в latin-1 HTTP-заголовке падает `UnicodeEncodeError` до запроса). Без ключа kit выполняет мутацию **одной попыткой** (ретраи только с ключом):
 
 ```python
-await self._api.post(f"/v1/orders/{oid}/cancel", json={...}, idempotency_key=f"cancel:{oid}")
+from bot.pkg.http_client.idempotency import idempotency_key
+
+await self._api.post(
+    f"/v1/orders/{oid}/cancel",
+    json={...},
+    idempotency_key=idempotency_key("order-cancel", oid),
+)
 ```
 
 Typed-ошибки клиент **не ловит** — они и есть его контракт. Исключение — идемпотентное смягчение, когда 409/404 на повторе = «уже применено» = успех (образец — `PaymentsAPI.fulfill_order`/`revoke_order`).
@@ -83,11 +86,12 @@ def billing(self, clients: ApiClients) -> BillingAPI:
 import httpx
 import pytest
 import respx
-from pylibinfra.httpclient import ApiClient, NotFoundError, UnavailableError
+from pylibinfra.httpclient import ApiClient
 
+from bot.pkg.http_client.errors import ContractError, NotFoundError
 from bot.pkg.http_client.internal.billing import BillingAPI
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.pkg
 
 
 @respx.mock
@@ -99,15 +103,15 @@ async def test_get_balance_returns_model(api: ApiClient) -> None:
 
 
 @respx.mock
-async def test_get_balance_broken_contract_raises_unavailable(api: ApiClient) -> None:
+async def test_get_balance_broken_contract_raises_contract_error(api: ApiClient) -> None:
     respx.get("http://backend/v1/balance/u1").mock(
         return_value=httpx.Response(200, json={"unexpected": "shape"})
     )
-    with pytest.raises(UnavailableError, match="contract violation"):
+    with pytest.raises(ContractError, match="does not match Balance"):
         await BillingAPI(api).get_balance("u1")
 ```
 
-Проверь как минимум: happy path (модель собралась), 404 → `NotFoundError`, ломаный контракт → `UnavailableError`; у мутации — заголовок `Idempotency-Key` (ASCII-safe).
+Проверь как минимум: happy path (модель собралась), 404 → `NotFoundError`, ломаный контракт → `ContractError`; у мутации — заголовок `Idempotency-Key` (канон-формат, latin-1-кодируемость). Негативный канон таксономии/ретраев целиком — `tests/pkg/test_error_taxonomy.py` (не дублируй его в каждом клиенте).
 
 ---
 
@@ -135,15 +139,19 @@ class BillingGateway(Protocol):
 def gateway(self, api: BillingAPI) -> BillingGateway:
     return api
 
+
 @provide
 def usecase(self, gw: BillingGateway, log: Logger) -> BillingUsecase:
     return BillingUsecase(gw, log)
 ```
 
 ### 3. Маппинг ошибок — в usecase (единственная точка)
-usecase знает порт + policy; typed-ошибки httpclient мапит в sentinel'ы фичи **здесь**, не в getter/handler:
+usecase знает порт + policy; typed-ошибки HTTP-границы (`bot.pkg.http_client.errors`) мапит в sentinel'ы фичи **здесь**, не в getter/handler. Канон «специфичные + catch-all»: доменно-значимые классы (`NotFoundError`/`ConflictError`) → свои sentinel'ы, замыкающий `except ApiError` → `*Unavailable` (401/422/429/Contract не протекают в recovery). Sentinel'ы user-текст **не несут** — текст живёт в `.ftl` (ключ отдаёт `views.error_text`):
 
 ```python
+from bot.pkg.http_client.errors import ApiError, NotFoundError
+
+
 async def balance(self, identity: BotIdentity) -> Balance:
     decision = policy.can_view_balance(identity.role)
     if not decision.allowed:
@@ -151,9 +159,10 @@ async def balance(self, identity: BotIdentity) -> Balance:
     try:
         return await self._gateway.get_balance(identity.backend_user_id)
     except NotFoundError as exc:
-        raise errors.BalanceNotFound(str(exc)) from exc
-    except UnavailableError as exc:
-        raise errors.BillingError("Сервис временно недоступен") from exc
+        raise errors.BalanceNotFound from exc
+    except ApiError as exc:
+        self._log.warn("billing.backend_fault", kind=type(exc).__name__, status=exc.status_code)
+        raise errors.BillingUnavailable from exc
 ```
 
 Нужен доменный тип вместо wire-модели (единицы, инварианты) — мапь тут же и держи его в `dto.py` (образец — payments: wire-`Offer` → `Order(Money)` в `PaymentsUsecase.offer`). Просмотровым фичам хватает wire-модели как есть (profile отдаёт `User`).
@@ -174,11 +183,11 @@ class _Gateway:
 
 async def test_balance_maps_unavailable() -> None:
     uc = BillingUsecase(_Gateway(error=UnavailableError("503")), nop())
-    with pytest.raises(errors.BillingError):
+    with pytest.raises(errors.BillingUnavailable):
         await uc.balance(_IDENTITY)
 ```
 
-Flow-тесты не трогаются: harness (`tests/_fakes/harness.py`) отдаёт pkg-клиенты поверх `FakeApiClient` (`tests/_fakes/backend.py` — in-memory заглушка kit-`ApiClient`: payload-словарь, `get_error`/`patch_error` для инжекта kit-ошибок).
+Flow-тесты не трогаются: harness (`tests/_fakes/harness.py`) отдаёт pkg-клиенты поверх `FakeApiClient` (`tests/_fakes/backend.py` — in-memory реализация `JsonApi`: payload per-path (`payloads[path]` + общий `payload`), per-метод инжекторы `get_error`/`post_error`/`put_error`/`patch_error`/`delete_error`, запись `calls`/`idempotency_keys`, `model=` применяется как в ките).
 
 ---
 
@@ -192,25 +201,29 @@ Flow-тесты не трогаются: harness (`tests/_fakes/harness.py`) о�
 ```python
 CRM_BACKEND = "crm"
 
+
 @provide
 def crm(self, clients: ApiClients) -> CrmAPI:
     return CrmAPI(clients.get(CRM_BACKEND))
 ```
 
-3. **Запись в `BackendsConfig`** — `config.py` (`AppConfigProvider.backends`); каждому бэкенду свой `base_url`:
+3. **Декларация в `BackendsConfig`** — `config.py` (`AppConfigProvider.backends`); каждый бэкенд — свой `BackendConfig`, `base_url` **обязателен** (пустой валит старт fail-fast; глобальные `HTTPCLIENT_*` в декларацию не протекают):
 
 ```python
 @provide
 def backends(self, http: HttpConfig) -> BackendsConfig:
     return BackendsConfig(
         backends={
-            CORE_BACKEND: http,  # одиночный HTTPCLIENT_* (HTTPCLIENT_BASE_URL)
-            CRM_BACKEND: HttpConfig(base_url=os.environ.get("CRM_BASE_URL", "")),
+            CORE_BACKEND: BackendConfig(base_url=http.base_url, timeout=http.timeout),
+            CRM_BACKEND: BackendConfig(
+                base_url=os.environ["CRM_BASE_URL"],
+                headers={"Authorization": f"Bearer {os.environ['CRM_TOKEN']}"},
+            ),
         }
     )
 ```
 
-Альтернатива программной записи — env-JSON целиком: `HTTPCLIENT_BACKENDS='{"core": {"base_url": "..."}, "crm": {"base_url": "..."}}'` (тогда `backends()` возвращает `BackendsConfig()`); выбор источника — решение стека (`docs/stack/backends.md`).
+Альтернатива программной записи — env-JSON целиком: `HTTPCLIENT_BACKENDS='{"core": {"base_url": "..."}, "crm": {"base_url": "..."}}'` (тогда `backends()` возвращает `BackendsConfig()`); выбор источника — решение стека (`docs/stack/backends.md`). Новый бэкенд добавь в fail-fast composition-тест (`tests/flows/test_composition.py`).
 
 > Новый `*_BASE_URL` env — инфра-поверхность: оформи INFRA-HANDOFF (rule `infra-impact`).
 
@@ -235,9 +248,11 @@ class OnboardingReader(Protocol):
 ```python
 from bot.features.start.usecase import StartUsecase
 
-class OnboardingReaderAdapter:           # структурно удовлетворяет ports.OnboardingReader
+
+class OnboardingReaderAdapter:  # структурно удовлетворяет ports.OnboardingReader
     def __init__(self, start_uc: StartUsecase) -> None:
         self._start = start_uc
+
     async def is_onboarded(self, tg_id: int) -> bool:
         return (await self._start.status(tg_id)).completed
 ```
@@ -273,11 +288,13 @@ make check
 
 - ❌ Сырой `httpx` в фиче или в pkg-клиенте — только `pylibinfra.httpclient.ApiClient`.
 - ❌ Ловить/мапить typed-ошибки в getter/handler или в pkg-клиенте — единственная точка маппинга в sentinel'ы — usecase (исключение — идемпотентное смягчение 409/404 в клиенте).
-- ❌ Возвращать из pkg-клиента сырой JSON без `parse` — ломаный контракт всплывёт `KeyError`'ом в окне вместо `UnavailableError`.
+- ❌ Возвращать из pkg-клиента сырой JSON (без `model=`) — ломаный контракт всплывёт `KeyError`'ом в окне вместо `ContractError`; wire-модель мимо `WireModel` (`extra="forbid"`) — молчаливый дрейф контракта.
+- ❌ Idempotency-ключ «руками» (f-строка с сырым вводом) — только `idempotency_key(op, *parts)`; без ключа мутация не ретраится.
 - ❌ Адаптер-прослойка между портом и pkg-клиентом «для чистоты» — Protocol совместим структурно, байнд в provider достаточно.
 - ❌ Широкий порт «на вырост» (10 методов «вдруг пригодится»). Сузь до нужного сейчас.
 - ❌ Импорт другой фичи из `usecase.py`/`getters.py` — только `adapters.py`/`provider.py` (import-linter заблокирует).
 - ❌ Импорт `bot.features.*`/`aiogram` из pkg — контракт «pkg не знает про бот».
 - ❌ Двусторонняя cross-feature зависимость A↔B — сигнал кривых границ; подумай о третьей фиче или platform-glue (`platform/links.py`-паттерн).
 - ❌ Мутация без `Idempotency-Key` при риске двойного клика/ретрая httpclient; не-ASCII в ключе.
-- ❌ Новый бэкенд без записи в `BackendsConfig` — `ApiClients.get(имя)` упадёт на старте; без INFRA-HANDOFF на новый `*_BASE_URL` — разъедешься с прод-окружением.
+- ❌ Новый бэкенд без декларации в `BackendsConfig` — `UnknownBackendError` при резолве клиента (ловит composition-тест); без INFRA-HANDOFF на новый `*_BASE_URL` — разъедешься с прод-окружением.
+- ❌ `from pylibinfra.httpclient import ...` в фиче — одна дверь: всё через `bot.pkg.http_client` (banned-api TID251 заблокирует).

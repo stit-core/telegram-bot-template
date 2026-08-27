@@ -32,6 +32,7 @@
 class CleanupUsecase:
     def __init__(self, store: DraftStore, log: Logger) -> None:
         self._store, self._log = store, log
+
     async def purge_expired(self) -> int:
         n = await self._store.delete_expired()
         self._log.info("cleanup.purged", count=n)
@@ -49,9 +50,11 @@ class CleanupUsecase:
 from pylibinfra.timerkit import PeriodicJob
 from bot.features.cleanup.usecase import CleanupUsecase
 
+
 def build_cleanup_job(uc: CleanupUsecase) -> PeriodicJob:
-    async def _run() -> None:                  # uc захвачен замыканием
+    async def _run() -> None:  # uc захвачен замыканием
         await uc.purge_expired()
+
     return PeriodicJob(name="cleanup-drafts", interval=300.0, handler=_run)
 ```
 

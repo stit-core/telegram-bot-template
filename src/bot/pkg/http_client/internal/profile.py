@@ -2,35 +2,29 @@
 
 from __future__ import annotations
 
-import hashlib
-
-from pydantic import BaseModel
-from pylibinfra.httpclient import ApiClient
-
-from bot.pkg.http_client.internal.codec import parse
+from bot.pkg.http_client.api import JsonApi
+from bot.pkg.http_client.idempotency import idempotency_key
+from bot.pkg.http_client.wire import WireModel
 
 
-class User(BaseModel):
+class User(WireModel):
     name: str
     email: str
-    premium: bool = False
+    premium: bool
 
 
 class ProfileAPI:
-    def __init__(self, api: ApiClient) -> None:
+    def __init__(self, api: JsonApi) -> None:
         self._api = api
 
     async def get_user(self, user_id: str) -> User:
-        raw = await self._api.get(f"/v1/users/{user_id}")
-        return parse(User, raw)
+        return await self._api.get(f"/v1/users/{user_id}", model=User)
 
     async def rename_user(self, user_id: str, name: str) -> User:
-        # Idempotency-Key уходит в latin-1 HTTP-заголовок: кириллица в name иначе падает
-        # UnicodeEncodeError до запроса. sha256 стабилен по имени → идемпотентность цела.
-        digest = hashlib.sha256(name.encode()).hexdigest()
-        raw = await self._api.patch(
+        # ключ стабилен по (user_id, name): повтор того же rename не дублирует мутацию
+        return await self._api.patch(
             f"/v1/users/{user_id}",
             json={"name": name},
-            idempotency_key=f"profile-rename:{user_id}:{digest}",
+            idempotency_key=idempotency_key("profile-rename", user_id, name),
+            model=User,
         )
-        return parse(User, raw)

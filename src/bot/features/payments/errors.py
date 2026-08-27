@@ -11,3 +11,7 @@ class PaymentError(FeatureError):
 
 class OrderNotFound(PaymentError):
     """Бэкенд не знает такого оффера/заказа."""
+
+
+class PaymentUnavailable(PaymentError):
+    """Платёжный бэкенд недоступен или нарушил контракт."""

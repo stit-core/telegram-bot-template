@@ -37,9 +37,11 @@
 from aiogram.filters import Filter
 from aiogram.types import Message
 
+
 class IsAdmin(Filter):
     def __init__(self, admin_ids: frozenset[int]) -> None:
         self._ids = admin_ids
+
     async def __call__(self, message: Message) -> bool:
         return message.from_user is not None and message.from_user.id in self._ids
 ```

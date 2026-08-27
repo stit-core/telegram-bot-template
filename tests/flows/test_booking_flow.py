@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import pytest
+from aiogram.types import Message
 from aiogram_dialog.test_tools.keyboard import InlineButtonDataLocator, InlineButtonTextLocator
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
 from tests._fakes.backend import FakeApiClient
@@ -26,13 +27,13 @@ def _client(backend: FakeApiClient) -> tuple[BotClient, MockMessageManager, obje
     return BotClient(dp), mm, container
 
 
-async def _open_services(client: BotClient, mm: MockMessageManager) -> object:
+async def _open_services(client: BotClient, mm: MockMessageManager) -> Message:
     await client.send("/start")
     menu = mm.last_message()
     mm.reset_history()
     await client.click(menu, InlineButtonTextLocator("start-btn-book"))
     services = mm.last_message()
-    assert "booking-services-title" in services.text
+    assert "booking-services-title" in (services.text or "")
     mm.reset_history()
     return services
 
@@ -49,17 +50,17 @@ async def test_wizard_with_delivery_asks_address_then_submits() -> None:
 
         await client.click(services, InlineButtonTextLocator("booking-next"))
         details = mm.last_message()
-        assert "booking-guests-prompt" in details.text
+        assert "booking-guests-prompt" in (details.text or "")
         mm.reset_history()
 
         await client.send("3")  # валидное число → доставка выбрана → шаг адреса
         address = mm.last_message()
-        assert "booking-address-prompt" in address.text
+        assert "booking-address-prompt" in (address.text or "")
         mm.reset_history()
 
         await client.send("Тверская улица 7")
         confirm = mm.last_message()
-        assert "booking-confirm" in confirm.text
+        assert "booking-confirm" in (confirm.text or "")
         mm.reset_history()
 
         await client.click(confirm, InlineButtonTextLocator("booking-submit"))
@@ -76,13 +77,13 @@ async def test_wizard_without_delivery_skips_address() -> None:
         # ничего не выбираем — сразу «Далее»
         await client.click(services, InlineButtonTextLocator("booking-next"))
         details = mm.last_message()
-        assert "booking-guests-prompt" in details.text
+        assert "booking-guests-prompt" in (details.text or "")
         mm.reset_history()
 
         await client.send("2")  # доставки нет → шаг адреса ПРОПУСКАЕТСЯ → сразу подтверждение
         confirm = mm.last_message()
-        assert "booking-confirm" in confirm.text
-        assert "booking-address-prompt" not in confirm.text
+        assert "booking-confirm" in (confirm.text or "")
+        assert "booking-address-prompt" not in (confirm.text or "")
         mm.reset_history()
 
         await client.click(confirm, InlineButtonTextLocator("booking-submit"))

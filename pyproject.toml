@@ -17,22 +17,24 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15",
+    "ruff>=0.16",
     "mypy>=2.1,<3",
-    "import-linter>=2.5",
+    "import-linter>=2.13",
     "pytest>=9,<10",
     "pytest-asyncio>=1.4,<2",
     "pytest-cov>=7.1,<8",
-    "respx>=0.22",            # мок httpx для тестов pkg-клиентов (tests/pkg, транспорт-граница)
+    "respx>=0.23",            # мок httpx для тестов pkg-клиентов (tests/pkg, транспорт-граница)
     "pylibinfra[testkit]",   # testcontainers redis/nats + bottest (flow-тесты диалогов)
 ]
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на релиз-тег инфры, как go-сервис на go.mod-версию.
-# ПИН: v0.3.0 — logkit (JSON-логи в stdout по LOG_STDOUT) поверх полного
-# tgbotkit-стека (+ httpclient.ApiClient: typed JSON, именованные бэкенды).
+# ПИН: v0.6.0 — httpclient со строгим контрактом (model=-декод в wire-модели,
+# таксономия typed-ошибок, ретраи мутаций только с Idempotency-Key, BackendConfig
+# с обязательным base_url) поверх полного tgbotkit-стека (изоляция событий диалогов,
+# MarkdownV2-хелперы, plain-фолбэк доставки, natskit dedup/DLQ).
 [tool.uv.sources]
-pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v0.3.0" }
+pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v0.6.0" }
 
 [build-system]
 requires = ["hatchling"]
@@ -46,6 +48,9 @@ packages = ["src/bot"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+# vendored-снапшот доков aiogram-dialog: не форматируем (ruff ≥0.16 форматирует
+# python-блоки в .md; наши .md — форматируем, единый стиль примеров с кодом)
+extend-exclude = ["aiogram-dialog-docs"]
 
 [tool.ruff.lint]
 select = [
@@ -63,24 +68,44 @@ select = [
     "S",        # bandit (≈ gosec)
     "TID",      # tidy imports (relative-import + banned-api)
     "T20",      # flake8-print: запрет print() (логи — только logkit.Logger)
+    "A",        # shadowing builtins (id/type/json как имена)
+    "DTZ",      # naive datetime запрещён (aware или инжектируемые часы)
+    "ISC",      # implicit str concat (без ISC001 — конфликтует с format)
+    "RSE",      # raise Exc() без лишних скобок/строк
+    "SLF",      # доступ к чужим _private (в тестах разрешён per-file)
+    "PGH",      # noqa/type: ignore только с кодом правила
+    "ERA",      # закомментированный код запрещён (rule comments)
+    "PERF",     # перф-ловушки (лишние копии/list в цикле)
+    "FURB",     # модернизация идиом
     "RUF",      # ruff-specific
 ]
 ignore = [
     "S101",                      # assert — допустим в защитных проверках вне тестов
     "RUF001", "RUF002", "RUF003",  # кириллица в комментариях (как в pylibinfra) — не ошибка
     "N818",                      # sentinel-ошибки в Go-стиле (ProfileNotFound, BookingUnavailable) — без суффикса Error
+    "ISC001",                    # однострочный implicit concat правит сам ruff format
+    "A002",                      # теневые имена параметров (json=) — язык httpx/ApiClient
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "N802", "PLR2004", "T20"]  # assert/секреты/имена/magic/print в тестах — ок
+# assert/секреты/имена/magic/print/private-доступ в тестах — ок; TID251 — тесты границы
+# (tests/pkg, composition) легально видят kit-классы httpclient напрямую
+"tests/**" = ["S", "N802", "PLR2004", "T20", "SLF001", "TID251"]
+# фасад двери и composition root — единственные владельцы прямого pylibinfra.httpclient
+"src/bot/pkg/http_client/**" = ["TID251"]
+"src/bot/app.py" = ["TID251"]
+"src/bot/config.py" = ["TID251"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bot"]
 
 # forbidigo-аналог: прямой logging-модуль запрещён — структурные логи только через
 # pylibinfra.logkit.Logger (trace-correlation + PII-redact из коробки).
+# «Одна дверь к бэкенду»: pylibinfra.httpclient импортится только фасадом
+# bot.pkg.http_client (+ composition root: app.py/config.py и тесты — per-file-ignores).
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "logging".msg = "use pylibinfra.logkit.Logger (structlog + trace-id), not stdlib logging"
+"pylibinfra.httpclient".msg = "import via bot.pkg.http_client (единая дверь: клиенты/errors/wire)"
 
 # ── mypy: строгая типизация ───────────────────────────────────────────────────
 [tool.mypy]
@@ -105,6 +130,12 @@ init_forbid_extra = true
 module = "fluent.*"
 ignore_missing_imports = true
 
+# Тесты типизируются строго, но зовут нетипизированные тест-тулы aiogram_dialog
+# (MockMessageManager/reset_history) — только для них ослаблен untyped-call.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_calls = false
+
 # ── pytest (аналог go test; integration ≈ снятие -short) ──────────────────────
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -112,6 +143,7 @@ testpaths = ["tests"]
 pythonpath = ["."]  # чтобы tests._fakes импортировался из flow/pkg-тестов
 markers = [
     "unit: чистые юнит-тесты (policy/views/валидаторы)",
+    "pkg: транспорт-граница pkg-клиентов через respx (tests/pkg)",
     "dialog: flow-тесты диалогов через BotClient (без Telegram)",
     "integration: тесты с контейнерами через testkit (Docker; снятие -short)",
     "e2e: сквозные сценарии против реального стека",
@@ -120,8 +152,11 @@ addopts = "--strict-markers --import-mode=importlib"
 filterwarnings = [
     # purgatory (circuit breaker из pylibinfra.httpclient) тянет pkg_resources — внешнее, не наша забота
     "ignore:pkg_resources is deprecated:UserWarning",
-    # testcontainers (pylibinfra.testkit) — внешние deprecation'ы их декораторов
+    # testcontainers (pylibinfra.testkit) — внешние deprecation'ы их декораторов/импорт-путей
     "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning",
+    "ignore:The wait_for_logs function with string or callable predicates is deprecated:DeprecationWarning",
+    "ignore:testcontainers.redis is deprecated:DeprecationWarning",
+    "ignore:testcontainers.nats is deprecated:DeprecationWarning",
 ]
 
 [tool.coverage.run]

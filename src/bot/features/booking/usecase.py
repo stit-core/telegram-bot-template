@@ -2,18 +2,19 @@
 
 Handlers не принимают доменных решений: каждый шаг — метод здесь; результат-данные
 (GuestsStep.address_required) говорит handler'у, какой экран следующий, но сами экраны
-usecase не знает. Anti-corruption: UnavailableError httpclient → BookingUnavailable.
+usecase не знает. Anti-corruption: typed-ошибки HTTP-границы → sentinel'ы errors.py
+(Conflict → BookingConflict, catch-all ApiError → BookingUnavailable).
 """
 
 from __future__ import annotations
 
-from pylibinfra.httpclient import UnavailableError
 from pylibinfra.logkit import Logger
 
 from bot.features.booking import errors, policy
 from bot.features.booking.dto import GuestsStep
 from bot.features.booking.ports import BookingGateway
 from bot.features.booking.state import BookingDraft
+from bot.pkg.http_client.errors import ApiError, ConflictError
 from bot.pkg.http_client.internal.booking import BookingConfirmation
 
 
@@ -40,18 +41,19 @@ class BookingUsecase:
         draft.address = address
         return draft
 
-    async def submit(
-        self, user_id: str, draft: BookingDraft, idempotency_key: str
-    ) -> BookingConfirmation:
+    async def submit(self, user_id: str, draft: BookingDraft, draft_id: str) -> BookingConfirmation:
         try:
             result = await self._gateway.submit_booking(
+                draft_id=draft_id,
                 user_id=user_id,
                 services=draft.services,
                 guests=draft.guests,
                 address=draft.address,
-                idempotency_key=idempotency_key,
             )
-        except UnavailableError as exc:
-            raise errors.BookingUnavailable("Сервис заказов недоступен") from exc
+        except ConflictError as exc:
+            raise errors.BookingConflict from exc
+        except ApiError as exc:
+            self._log.warn("booking.backend_fault", kind=type(exc).__name__, status=exc.status_code)
+            raise errors.BookingUnavailable from exc
         self._log.info("booking.submitted", confirmation_id=result.confirmation_id)
         return result

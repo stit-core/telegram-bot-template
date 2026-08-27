@@ -52,7 +52,7 @@ class Profile(StatesGroup):
     # DEPRECATED (since vX.Y.Z): осиротевшие стеки приземляются сюда → редирект на VIEW.
     # Удалить не раньше, чем истечёт TTL dialog-context в Redis + запас (см. §5).
     OLD_STEP = State()
-    NEW_STEP = State()        # новое окно вместо OLD_STEP
+    NEW_STEP = State()  # новое окно вместо OLD_STEP
 ```
 
 - Новый флоу ведёт на `NEW_STEP`.
@@ -66,7 +66,7 @@ class Profile(StatesGroup):
 - **Окно-редирект на deprecated State.** Для `OLD_STEP` оставь окно, чьё единственное действие — увести вперёд/в безопасную точку:
   ```python
   old_step_window = Window(
-      I18NFormat("common-updated-restart"),   # «мы обновили этот шаг»
+      I18NFormat("common-updated-restart"),  # «мы обновили этот шаг»
       Start(I18NFormat("common-to-menu"), id="redir", state=states.Start.MENU),
       state=ProfileSG.OLD_STEP,
   )

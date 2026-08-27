@@ -28,7 +28,7 @@
 class Profile(StatesGroup):
     VIEW = State()
     EDIT_NAME = State()
-    CONFIRM = State()        # ← новое окно
+    CONFIRM = State()  # ← новое окно
 ```
 
 ⚠️ Один `State` = одно окно. Не переиспользуй существующий `State` для второго окна (дубль `state=` → `setup_dialogs` упадёт).
@@ -57,15 +57,19 @@ async def confirm_getter(
 # handlers.py (дополнение)
 @inject
 async def on_confirm(
-    callback: CallbackQuery, button: Button, manager: DialogManager,
-    *, uc: FromDishka[ProfileUsecase], identity: FromDishka[BotIdentity],
+    callback: CallbackQuery,
+    button: Button,
+    manager: DialogManager,
+    *,
+    uc: FromDishka[ProfileUsecase],
+    identity: FromDishka[BotIdentity],
 ) -> None:
     try:
-        await uc.commit(identity)          # мутация
+        await uc.commit(identity)  # мутация
     except errors.ProfileError as exc:
         await callback.answer(views.error_text(exc), show_alert=True)
         return
-    await manager.switch_to(ProfileSG.VIEW)   # успех → назад
+    await manager.switch_to(ProfileSG.VIEW)  # успех → назад
 ```
 
 dialog-level хендлер → `@inject` из `dishka.integrations.aiogram_dialog`. `DialogManager` в dialog-level приходит аргументом виджета (не `FromDishka`).

@@ -26,7 +26,7 @@
 В `src/bot/platform/dialogs/states.py`:
 
 ```python
-class ProfileSettings(StatesGroup):   # отдельная группа, не расширение существующей
+class ProfileSettings(StatesGroup):  # отдельная группа, не расширение существующей
     MENU = State()
     NOTIFY = State()
 ```
@@ -46,7 +46,7 @@ class ProfileSettings(StatesGroup):   # отдельная группа, не р
 from aiogram_dialog import Dialog, Window
 from pylibinfra.tgbotkit import I18NFormat
 from bot.features.profile import getters
-from bot.features.profile.state import ProfileSettingsSG   # re-export в state.py
+from bot.features.profile.state import ProfileSettingsSG  # re-export в state.py
 from bot.platform.dialogs.common import back_to_menu
 
 settings_menu = Window(
@@ -55,7 +55,7 @@ settings_menu = Window(
     state=ProfileSettingsSG.MENU,
     getter=getters.settings_getter,
 )
-profile_settings_dialog = Dialog(settings_menu)   # своя StatesGroup
+profile_settings_dialog = Dialog(settings_menu)  # своя StatesGroup
 ```
 
 В `state.py` добавь re-export: `ProfileSettingsSG = states.ProfileSettings`.

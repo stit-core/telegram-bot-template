@@ -4,7 +4,7 @@
 
 ### Тонкий шаблон Telegram-бота: чистая бизнес-логика на aiogram_dialog
 
-Шаблон Telegram-бота экосистемы stit: aiogram 3.28 + aiogram-dialog 2.6 + dishka, поверх
+Шаблон Telegram-бота экосистемы stit: aiogram 3.31 + aiogram-dialog 2.6 + dishka, поверх
 [`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra) (Bot/Dispatcher,
 RedisStorage, middleware, webhook/polling runner, error-UX, структурные логи, i18n/notifications/
 payments/webapp). Observability, тесты и релиз — встроены; вы пишете фичи (диалоги), не обвязку.
@@ -12,7 +12,7 @@ payments/webapp). Observability, тесты и релиз — встроены; 
 [![License](https://img.shields.io/badge/license-Apache--2.0-2563eb)](LICENSE)
 [![Часть stit](https://img.shields.io/badge/stit-открытые_шаблоны-6366f1)](https://git.stit.tech/stit-core/stit-public)
 [![Python](https://img.shields.io/badge/Python-≥3.12-3776AB)](#что-внутри)
-[![aiogram](https://img.shields.io/badge/aiogram-3.28_+_aiogram__dialog_2.6-0088cc)](#что-внутри)
+[![aiogram](https://img.shields.io/badge/aiogram-3.31_+_aiogram__dialog_2.6-0088cc)](#что-внутри)
 [![DI](https://img.shields.io/badge/DI-dishka-8b5cf6)](#что-внутри)
 [![Observability](https://img.shields.io/badge/observability-structured_logs-22c55e)](#что-внутри)
 
@@ -79,7 +79,8 @@ claude                 # → /init-service
   [`docs/reference/dialog-mapping.md`](docs/reference/dialog-mapping.md).
 - **Тесты** — unit, flow (`BotClient` + фейк порта), integration (testcontainers redis/nats),
   startup-smoke (коллизии `StatesGroup`).
-- **Gate** — `make check` = ruff format/check + import-linter + mypy + pytest (pre-push хук).
+- **Gate** — `make check` = ruff format/check + import-linter + mypy (src+tests) + lock-check +
+  pytest с полом покрытия (pre-push хук).
 
 ## Команды
 
@@ -87,7 +88,7 @@ claude                 # → /init-service
 [`CLAUDE.md`](CLAUDE.md); точка входа в сессию — `/smartdev`.
 
 ```bash
-make check     # ruff format/check + import-linter + mypy + pytest (gate перед push)
+make check     # ruff/import-linter/mypy/lock-check/pytest+cover-floor (gate перед push)
 make run       # локальный polling-бот (нужен BOT_TOKEN)
 make test-integration   # тесты с Docker (testcontainers redis/nats)
 make release VERSION=vX.Y.Z   # образ в registry (skill /release)

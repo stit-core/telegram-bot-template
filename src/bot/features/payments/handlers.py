@@ -27,9 +27,11 @@ from pylibinfra.tgbotkit import (
 )
 from pylibinfra.tgbotkit.i18n import I18N_FORMAT_KEY
 
+from bot.features.payments import errors, views
 from bot.features.payments.state import DEMO_OFFER_ID
 from bot.features.payments.usecase import PaymentsUsecase
 from bot.platform.identity import BotIdentity
+from bot.shared.i18n import render
 
 
 @inject_dialog
@@ -41,7 +43,12 @@ async def on_buy(
     uc: FromDishka[PaymentsUsecase],
     bot: FromDishka[Bot],
 ) -> None:
-    order = await uc.offer(DEMO_OFFER_ID)
+    try:
+        order = await uc.offer(DEMO_OFFER_ID)
+    except errors.PaymentError as exc:
+        fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+        await callback.answer(render(fmt, views.error_text(exc)), show_alert=True)
+        return
     invoice = build_invoice(
         title=order.title,
         description=order.description,
@@ -63,7 +70,12 @@ async def on_subscribe(
     uc: FromDishka[PaymentsUsecase],
     bot: FromDishka[Bot],
 ) -> None:
-    order = await uc.offer(DEMO_OFFER_ID)
+    try:
+        order = await uc.offer(DEMO_OFFER_ID)
+    except errors.PaymentError as exc:
+        fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+        await callback.answer(render(fmt, views.error_text(exc)), show_alert=True)
+        return
     # рекуррентные списания приходят тем же payload → fulfill идемпотентен по charge_id
     link = await build_subscription_link(
         bot,

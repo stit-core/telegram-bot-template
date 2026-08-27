@@ -23,3 +23,11 @@ class ProfileForbidden(ProfileError):
 
 class NameRejected(ProfileError):
     """Имя не прошло валидацию (для on_error ввода)."""
+
+
+class ProfileConflict(ProfileError):
+    """Бэкенд ответил конфликтом состояния — результат мутации неоднозначен."""
+
+
+class ProfileUnavailable(ProfileError):
+    """Бэкенд профиля недоступен или нарушил контракт."""

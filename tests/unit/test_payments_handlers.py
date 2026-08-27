@@ -31,7 +31,7 @@ from bot.platform.identity import BotIdentity
 
 pytestmark = pytest.mark.unit
 
-_OFFER = Offer(id="o1", title="Премиум", description="30д", amount=100)
+_OFFER = Offer(id="o1", title="Премиум", description="30д", amount=100, currency="XTR")
 
 
 class _Gateway:
@@ -102,7 +102,7 @@ class _Deps(Provider):
 
     @provide
     def usecase(self) -> PaymentsUsecase:
-        return PaymentsUsecase(self._gateway, nop())  # type: ignore[arg-type]
+        return PaymentsUsecase(self._gateway, nop())
 
     @provide
     def bot(self) -> Bot:
@@ -170,7 +170,7 @@ async def _pre_checkout(gateway: _Gateway, *, amount: int, currency: str) -> lis
     container = _container(gateway, bot, FakeRedis())
     query = SimpleNamespace(id="pq1", invoice_payload="o1", total_amount=amount, currency=currency)
     async with container() as rc:
-        await handlers.on_pre_checkout(query, dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_pre_checkout(query, dishka_container=rc)  # type: ignore[call-arg, arg-type]
     await container.close()
     return bot.pre_checkout
 
@@ -203,7 +203,7 @@ async def _complete(gateway: _Gateway, message: Any, redis: FakeRedis) -> None:
     container = _container(gateway, _FakeBot(), redis)
     try:
         async with container() as rc:
-            await handlers.on_successful_payment(message, dishka_container=rc)  # type: ignore[arg-type]
+            await handlers.on_successful_payment(message, dishka_container=rc)  # type: ignore[call-arg]
     finally:
         await container.close()
 
@@ -267,7 +267,7 @@ async def test_on_refunded_payment_reverses_and_commits() -> None:
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
     container = _container(gw, _FakeBot(), redis)
     async with container() as rc:
-        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[call-arg]
     await container.close()
     assert gw.revoked == [("o1", "ch-1")]
     assert redis.store["tg:refund:ch-1"] == b"1"
@@ -280,7 +280,7 @@ async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
     container = _container(gw, _FakeBot(), redis)
     async with container() as rc:
-        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[call-arg]
     await container.close()
     assert gw.revoked == []
 
@@ -292,7 +292,7 @@ async def test_on_refund_command_admin_refunds_payer() -> None:
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
     async with container() as rc:
-        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[call-arg, arg-type]
     await container.close()
     assert bot.refunds == [(42, "ch-1")]
 
@@ -303,7 +303,7 @@ async def test_on_refund_command_denies_non_admin() -> None:
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
     async with container() as rc:
-        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[call-arg, arg-type]
     await container.close()
     assert bot.refunds == []  # не-админ не инициирует возврат
     assert msg.answers  # получил отказ
@@ -315,6 +315,6 @@ async def test_on_refund_command_unknown_payer() -> None:
     msg = _Message()
     cmd = SimpleNamespace(args="ghost")
     async with container() as rc:
-        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[arg-type]
+        await handlers.on_refund_command(msg, cmd, dishka_container=rc)  # type: ignore[call-arg, arg-type]
     await container.close()
     assert bot.refunds == []  # плательщик не найден → без обращения к Telegram

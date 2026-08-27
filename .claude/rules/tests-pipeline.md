@@ -17,17 +17,20 @@ paths:
 - `tests/flows/` (маркер **`dialog`**): сценарии диалогов через `BotClient` +
   `MockMessageManager` + `JsonMemoryStorage` (`pylibinfra.testkit.bottest`), без реального
   Telegram. Сборка контейнера/dp — `tests/_fakes/harness.py` (`make_container`/`build_dp`).
-- `tests/pkg/`: pkg-клиенты (`ProfileAPI`/`BookingAPI`/`PaymentsAPI`) через `respx`
-  (мок httpx на транспорт-границе).
+- `tests/pkg/` (маркер **`pkg`**): pkg-клиенты (`ProfileAPI`/`BookingAPI`/`PaymentsAPI`) через
+  `respx` (мок httpx на транспорт-границе) + негативный канон таксономии/ретраев/гейта мутаций —
+  `test_error_taxonomy.py` (единственное место, где проверяется retry/breaker-поведение).
 - маркер `integration` (Docker, testcontainers redis/nats) и `e2e` — **вне** `make check`,
   гоняет CI (`make test-integration`).
 
 ## Мокаем границу бэкенда, не транспорт
 
-- Подменяй **фейк бэкенда** (`tests/_fakes/backend.py: FakeApiClient` — in-memory заглушка
-  kit-`ApiClient`; `tests/_fakes/harness.py` отдаёт поверх него `ProfileAPI`/`BookingAPI`/
-  `PaymentsAPI`), не `httpx`/`Bot`/`Dispatcher`. Исключение — `tests/pkg/` намеренно тестирует
-  транспорт-границу через `respx`.
+- Подменяй **фейк бэкенда** (`tests/_fakes/backend.py: FakeApiClient` — in-memory реализация
+  `JsonApi` из `bot.pkg.http_client.api`: payload per-path, per-метод инжекторы ошибок,
+  `model=`-валидация как в ките, запись `calls`/`idempotency_keys`; `tests/_fakes/harness.py`
+  отдаёт поверх него `ProfileAPI`/`BookingAPI`/`PaymentsAPI` — без `type: ignore`), не
+  `httpx`/`Bot`/`Dispatcher`. Исключение — `tests/pkg/` намеренно тестирует транспорт-границу
+  через `respx`.
 - Фон — фейк `Delivery` (`tests/_fakes/delivery.py`) + фейк `Cache`/`Redis`
   (`tests/_fakes/cache.py`/`redis.py`), не реальный NATS.
 - `JsonMemoryStorage` сериализует тем же json-кодеком, что прод-Redis → ловит несериализуемое в

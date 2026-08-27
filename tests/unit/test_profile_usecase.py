@@ -1,15 +1,20 @@
-"""Unit: ProfileUsecase — anti-corruption: typed-ошибки httpclient → sentinel'ы фичи,
-policy-гейты (доступ/валидация) до похода в порт.
+"""Unit: ProfileUsecase — anti-corruption: typed-ошибки HTTP-границы → sentinel'ы фичи
+(включая catch-all ApiError), policy-гейты (доступ/валидация) до похода в порт.
 """
 
 from __future__ import annotations
 
 import pytest
-from pylibinfra.httpclient import ConflictError, NotFoundError, UnavailableError
 from pylibinfra.logkit import nop
 
 from bot.features.profile import errors
 from bot.features.profile.usecase import ProfileUsecase
+from bot.pkg.http_client.errors import (
+    AuthError,
+    ConflictError,
+    NotFoundError,
+    UnavailableError,
+)
 from bot.pkg.http_client.internal.profile import User
 from bot.platform.identity import BotIdentity
 
@@ -48,7 +53,7 @@ def _uc(gateway: _Gateway) -> ProfileUsecase:
 
 
 async def test_view_returns_user() -> None:
-    user = User(name="Алиса", email="a@x.io")
+    user = User(name="Алиса", email="a@x.io", premium=False)
     assert await _uc(_Gateway(user=user)).view(_IDENTITY) is user
 
 
@@ -64,13 +69,19 @@ async def test_view_maps_not_found() -> None:
         await _uc(_Gateway(error=NotFoundError("404"))).view(_IDENTITY)
 
 
-async def test_view_maps_unavailable_to_profile_error() -> None:
-    with pytest.raises(errors.ProfileError):
+async def test_view_maps_unavailable_to_sentinel() -> None:
+    with pytest.raises(errors.ProfileUnavailable):
         await _uc(_Gateway(error=UnavailableError("503"))).view(_IDENTITY)
 
 
+async def test_view_catches_full_taxonomy() -> None:
+    # catch-all по ApiError: 401 и прочие не-transient классы не протекают в recovery
+    with pytest.raises(errors.ProfileUnavailable):
+        await _uc(_Gateway(error=AuthError("401", status_code=401))).view(_IDENTITY)
+
+
 async def test_rename_strips_and_passes_name() -> None:
-    gw = _Gateway(user=User(name="Боб", email="a@x.io"))
+    gw = _Gateway(user=User(name="Боб", email="a@x.io", premium=False))
     await _uc(gw).rename(_IDENTITY, "  Боб  ")
     assert gw.renames == ["Боб"]
 
@@ -81,9 +92,9 @@ async def test_rename_rejects_invalid_name_without_io() -> None:
         await _uc(gw).rename(_IDENTITY, "   ")
 
 
-async def test_rename_maps_conflict_to_profile_error() -> None:
-    # rename на 409 — тело успеха не приходит, исход неоднозначен → доменная ProfileError
-    with pytest.raises(errors.ProfileError):
+async def test_rename_maps_conflict_to_sentinel() -> None:
+    # rename на 409 — тело успеха не приходит, исход неоднозначен → ProfileConflict
+    with pytest.raises(errors.ProfileConflict):
         await _uc(_Gateway(error=ConflictError("409"))).rename(_IDENTITY, "Боб")
 
 

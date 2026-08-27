@@ -59,9 +59,8 @@ async def test_transient_delivery_failure_redelivers_then_commits_once() -> None
                             enabled=True,
                             stream_names=["orders"],
                             max_deliver=5,
-                            backoff=[0.2],
+                            nak_backoff=0.2,
                             ack_wait=0.5,
-                            dlq_enabled=False,
                         )
                     )
                     bus = await new_stream_bus(Conn(nc), cfg)

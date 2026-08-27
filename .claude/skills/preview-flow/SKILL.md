@@ -43,11 +43,11 @@ uv add --group dev "aiogram-dialog[tools]"      # или: uv pip install diagram
 ```python
 # scripts/preview.py (dev-утилита, не коммит в рантайм)
 from aiogram_dialog.tools import render_transitions
-from bot.features import start, profile, payments, lang   # те же, что в RouterBundle
+from bot.features import start, profile, payments, lang  # те же, что в RouterBundle
 
 render_transitions(
     [start.dialog, profile.dialog, payments.dialog, lang.dialog],
-    filename="flow",          # → flow.png (+ .dot)
+    filename="flow",  # → flow.png (+ .dot)
 )
 ```
 
@@ -68,6 +68,7 @@ uv run python scripts/preview.py && echo "→ flow.png"
 ```python
 import asyncio
 from aiogram_dialog.tools import render_preview
+
 # bot — фейковый/реальный Bot; registry — DialogRegistry со всеми Dialog'ами
 asyncio.run(render_preview(bot, "preview.html"))
 ```

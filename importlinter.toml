@@ -1,6 +1,7 @@
 # Границы гексагона — аналог depguard у go-template. Запускается `make lint`
 # (lint-imports --config importlinter.toml). Контракты: слои фичи, независимость фич,
-# чистое ядро, handlers/getters без policy, pkg не знает про бот.
+# чистое ядро, handlers/getters без policy, pkg не знает про бот, httpx только в pkg,
+# presentation не ходит в pkg. «Одна дверь к бэкенду» — ruff banned-api (см. ниже у §7).
 [tool.importlinter]
 root_package = "bot"
 include_external_packages = true
@@ -53,11 +54,11 @@ ignore_imports = [
     "bot.features.*.provider -> bot.features.*.*",
 ]
 
-# 3. Чистое ядро (usecase/policy/state/dto) не знает про инфра-детали и про infra/ своей фичи.
-#    Wire-модели и typed-ошибки pkg-клиентов (bot.pkg.*, pylibinfra.httpclient) ядру РАЗРЕШЕНЫ —
-#    это «язык» портов; запрещён сырой транспорт (httpx) и presentation (aiogram).
-#    allow_indirect_imports: запрещаем только ПРЯМЫЕ импорты (aiogram.StatesGroup транзитом
-#    через platform/dialogs/states — архитектура, не утечка).
+# 3. Чистое ядро (usecase/policy/state/dto/ports/errors/views/adapters) не знает про
+#    инфра-детали и про infra/ своей фичи. Wire-модели и typed-ошибки pkg-клиентов
+#    (bot.pkg.*) ядру РАЗРЕШЕНЫ — это «язык» портов; запрещён сырой транспорт (httpx)
+#    и presentation (aiogram). allow_indirect_imports: запрещаем только ПРЯМЫЕ импорты
+#    (aiogram.StatesGroup транзитом через platform/dialogs/states — архитектура, не утечка).
 [[tool.importlinter.contracts]]
 name = "Чистое ядро не импортит инфру напрямую (httpx/aiogram/redis/infra)"
 type = "forbidden"
@@ -67,6 +68,10 @@ source_modules = [
     "bot.features.*.policy",
     "bot.features.*.state",
     "bot.features.*.dto",
+    "bot.features.*.ports",
+    "bot.features.*.errors",
+    "bot.features.*.views",
+    "bot.features.*.adapters",
 ]
 forbidden_modules = [
     "httpx",
@@ -104,4 +109,37 @@ forbidden_modules = [
     "bot.platform",
     "aiogram",
     "aiogram_dialog",
+]
+
+# 6. Сырой HTTP-транспорт живёт только в pkg: фича/платформа с httpx в руках — это
+#    обход клиентского канона (ретраи/breaker/таксономия/Idempotency-Key теряются).
+[[tool.importlinter.contracts]]
+name = "HTTP-транспорт только в pkg (нет httpx в features/platform)"
+type = "forbidden"
+allow_indirect_imports = "true"
+source_modules = [
+    "bot.features",
+    "bot.platform",
+]
+forbidden_modules = [
+    "httpx",
+]
+
+# «Одна дверь к бэкенду» (pylibinfra.httpclient только через bot.pkg.http_client) — контракт
+# живёт в ruff banned-api (TID251, pyproject.toml): import-linter не умеет запрещать
+# подпакет внешнего пакета (grimp схлопывает external до top-level).
+
+# 7. Presentation (dialogs/getters/handlers) не дёргает pkg-клиентов напрямую —
+#    данные приходят через usecase (anti-corruption точка фичи).
+[[tool.importlinter.contracts]]
+name = "Presentation не ходит в pkg (данные — через usecase)"
+type = "forbidden"
+allow_indirect_imports = "true"
+source_modules = [
+    "bot.features.*.dialogs",
+    "bot.features.*.getters",
+    "bot.features.*.handlers",
+]
+forbidden_modules = [
+    "bot.pkg",
 ]

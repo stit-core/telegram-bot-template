@@ -10,7 +10,11 @@ class BookingError(FeatureError):
 
 
 class BookingUnavailable(BookingError):
-    """Бэкенд заказов недоступен."""
+    """Бэкенд заказов недоступен или нарушил контракт."""
+
+
+class BookingConflict(BookingError):
+    """Бэкенд ответил конфликтом состояния — заказ уже оформлен либо изменился."""
 
 
 class GuestsRejected(BookingError):

@@ -2,39 +2,38 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-from pylibinfra.httpclient import ApiClient, ConflictError, NotFoundError
+from bot.pkg.http_client.api import JsonApi
+from bot.pkg.http_client.errors import ConflictError, NotFoundError
+from bot.pkg.http_client.idempotency import idempotency_key
+from bot.pkg.http_client.wire import WireModel
 
-from bot.pkg.http_client.internal.codec import parse
 
-
-class Offer(BaseModel):
+class Offer(WireModel):
     id: str
     title: str
     description: str = ""
     amount: int
-    currency: str = "XTR"
+    currency: str
 
 
-class Charge(BaseModel):
+class Charge(WireModel):
     user_id: int
 
 
 class PaymentsAPI:
-    def __init__(self, api: ApiClient) -> None:
+    def __init__(self, api: JsonApi) -> None:
         self._api = api
 
     async def get_offer(self, offer_id: str) -> Offer:
-        raw = await self._api.get(f"/v1/offers/{offer_id}")
-        return parse(Offer, raw)
+        return await self._api.get(f"/v1/offers/{offer_id}", model=Offer)
 
     async def fulfill_order(self, order_id: str, charge_id: str) -> None:
-        # fulfill идемпотентен (Idempotency-Key=charge_id); 409 = выдача уже применена → успех
+        # fulfill идемпотентен по charge_id; 409 = выдача уже применена → успех
         try:
             await self._api.post(
                 f"/v1/orders/{order_id}/fulfill",
                 json={"charge_id": charge_id},
-                idempotency_key=charge_id,
+                idempotency_key=idempotency_key("order-fulfill", charge_id),
             )
         except ConflictError:
             return
@@ -45,14 +44,13 @@ class PaymentsAPI:
             await self._api.post(
                 f"/v1/orders/{order_id}/revoke",
                 json={"charge_id": charge_id},
-                idempotency_key=f"revoke:{charge_id}",
+                idempotency_key=idempotency_key("order-revoke", charge_id),
             )
         except (ConflictError, NotFoundError):
             return
 
     async def find_charge(self, charge_id: str) -> Charge | None:
         try:
-            raw = await self._api.get(f"/v1/charges/{charge_id}")
+            return await self._api.get(f"/v1/charges/{charge_id}", model=Charge)
         except NotFoundError:
             return None
-        return parse(Charge, raw)

@@ -1,16 +1,17 @@
 """usecase.py — оркестрация сценария. Знает ТОЛЬКО порты (Protocol) и policy.
 
-Единственная точка anti-corruption: typed-ошибки httpclient (NotFound/Conflict/Unavailable)
-мапятся в sentinel'ы errors.py здесь, не в presentation. Не знает про aiogram/httpx.
+Единственная точка anti-corruption: typed-ошибки HTTP-границы (bot.pkg.http_client.errors)
+мапятся в sentinel'ы errors.py здесь, не в presentation; catch-all по ApiError — ничего
+не протекает наружу. Не знает про aiogram/httpx.
 """
 
 from __future__ import annotations
 
-from pylibinfra.httpclient import ConflictError, NotFoundError, UnavailableError
 from pylibinfra.logkit import Logger
 
 from bot.features.profile import errors, policy
 from bot.features.profile.ports import BackendGateway, OnboardingReader
+from bot.pkg.http_client.errors import ApiError, ConflictError, NotFoundError
 from bot.pkg.http_client.internal.profile import User
 from bot.platform.identity import BotIdentity
 
@@ -28,9 +29,10 @@ class ProfileUsecase:
         try:
             return await self._gateway.get_user(identity.backend_user_id)
         except NotFoundError as exc:
-            raise errors.ProfileNotFound(str(exc)) from exc
-        except UnavailableError as exc:
-            raise errors.ProfileError("Сервис временно недоступен") from exc
+            raise errors.ProfileNotFound from exc
+        except ApiError as exc:
+            self._log.warn("profile.backend_fault", kind=type(exc).__name__, status=exc.status_code)
+            raise errors.ProfileUnavailable from exc
 
     async def rename(self, identity: BotIdentity, raw_name: str) -> User:
         decision = policy.validate_name(raw_name)
@@ -39,12 +41,13 @@ class ProfileUsecase:
         try:
             user = await self._gateway.rename_user(identity.backend_user_id, raw_name.strip())
         except NotFoundError as exc:
-            raise errors.ProfileNotFound(str(exc)) from exc
+            raise errors.ProfileNotFound from exc
         except ConflictError as exc:
             # rename возвращает обновлённый профиль — на 409 тела нет, успех неоднозначен
-            raise errors.ProfileError("Не удалось обновить профиль") from exc
-        except UnavailableError as exc:
-            raise errors.ProfileError("Сервис временно недоступен") from exc
+            raise errors.ProfileConflict from exc
+        except ApiError as exc:
+            self._log.warn("profile.backend_fault", kind=type(exc).__name__, status=exc.status_code)
+            raise errors.ProfileUnavailable from exc
         self._log.info("profile.renamed", tg_id=identity.tg_id)
         return user
 

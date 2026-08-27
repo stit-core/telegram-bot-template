@@ -1,7 +1,8 @@
 """provider.py — DI пакета: internal-клиенты поверх именованного ApiClient «core».
 
 Имя бэкенда = ключ в BackendsConfig (config.py) = label breaker-метрик. Новый internal-
-бэкенд: модуль в internal/, имя-константа, @provide здесь, запись в BackendsConfig.
+бэкенд: модуль в internal/, имя-константа, @provide здесь, BackendConfig в config.py
+(base_url обязателен — незаполненный бэкенд падает на старте, не на первом юзере).
 """
 
 from __future__ import annotations

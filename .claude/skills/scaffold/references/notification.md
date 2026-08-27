@@ -33,6 +33,7 @@ from pylibinfra.cachekit import Cache
 from pylibinfra.tgbotkit import Delivery, DeliveryDedup
 from bot.platform.links import chat_link_key
 
+
 class SubExpiringDeliverer:
     def __init__(self, cache: Cache, dedup: DeliveryDedup) -> None:
         self._cache, self._dedup = cache, dedup
@@ -44,11 +45,11 @@ class SubExpiringDeliverer:
         user_ref = str(payload.get("user_ref", ""))
         if not event_id or not user_ref:
             return
-        if await self._dedup.seen(f"sub-expiring:{event_id}"):   # at-least-once дедуп
+        if await self._dedup.seen(f"sub-expiring:{event_id}"):  # at-least-once дедуп
             return
         chat_id = await self._lookup_chat(user_ref)
         if chat_id is None:
-            return                                                # нет link — тихо пропускаем
+            return  # нет link — тихо пропускаем
         await delivery.send_message(chat_id=chat_id, text="⏳ Подписка скоро истекёт.")
 
     async def _lookup_chat(self, user_ref: str) -> int | None:

@@ -11,11 +11,13 @@ from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.input import ManagedTextInput
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
+from pylibinfra.tgbotkit.i18n import I18N_FORMAT_KEY
 
 from bot.features.profile import errors, views
 from bot.features.profile.state import ProfileSG
 from bot.features.profile.usecase import ProfileUsecase
 from bot.platform.identity import BotIdentity
+from bot.shared.i18n import render
 
 
 @inject
@@ -31,7 +33,8 @@ async def on_save_name(
     try:
         await uc.rename(identity, value)
     except errors.ProfileError as exc:
-        await message.answer(views.error_text(exc))
+        fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+        await message.answer(render(fmt, views.error_text(exc)))
         return
     await manager.switch_to(ProfileSG.VIEW)  # успех → назад к просмотру (перерисует getter)
 
@@ -43,4 +46,5 @@ async def on_name_error(
     error: ValueError,
 ) -> None:
     # сюда попадаем, если type_factory кинул ValueError (для str не бывает; задел под typed-input)
-    await message.answer("Некорректный ввод, попробуйте ещё раз.")
+    fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+    await message.answer(render(fmt, "profile-input-invalid"))

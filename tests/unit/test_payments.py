@@ -12,7 +12,7 @@ from bot.pkg.http_client.internal.payments import Charge, Offer
 
 pytestmark = pytest.mark.unit
 
-_OFFER = Offer(id="premium-30d", title="Премиум", amount=100)
+_OFFER = Offer(id="premium-30d", title="Премиум", amount=100, currency="XTR")
 
 
 class _FakeGateway:

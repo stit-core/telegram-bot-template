@@ -64,19 +64,21 @@ Wire-модель и метод клиента — в `pkg/http_client/internal/
 
 ```python
 # pkg/http_client/internal/referral.py
-from pydantic import BaseModel
-from pylibinfra.httpclient import ApiClient
-from bot.pkg.http_client.internal.codec import parse
+from bot.pkg.http_client.api import JsonApi
+from bot.pkg.http_client.wire import WireModel
 
-class Referral(BaseModel):
+
+class Referral(WireModel):
     code: str
-    invited: int = 0
+    invited: int
+
 
 class ReferralAPI:
-    def __init__(self, api: ApiClient) -> None:
+    def __init__(self, api: JsonApi) -> None:
         self._api = api
+
     async def get_referral(self, user_id: str) -> Referral:
-        return parse(Referral, await self._api.get(f"/v1/referrals/{user_id}"))
+        return await self._api.get(f"/v1/referrals/{user_id}", model=Referral)
 ```
 
 (+ `@provide def referral(self, clients: ApiClients) -> ReferralAPI` в `pkg/http_client/provider.py` поверх `clients.get(CORE_BACKEND)`.)
@@ -89,20 +91,27 @@ from bot.platform.dialogs import states
 
 ReferralSG = states.Referral
 
-class ReferralDialogData(BaseModel):   # только JSON-примитивы (уезжает в Redis)
+
+class ReferralDialogData(BaseModel):  # только JSON-примитивы (уезжает в Redis)
     draft_code: str | None = None
 ```
 
 ```python
 # errors.py
 from bot.shared.errors import FeatureError
+
+
 class ReferralError(FeatureError): ...
+
+
 class ReferralNotFound(ReferralError): ...
 ```
 
 ```python
 # policy.py  (без I/O; возвращает Decision; зовётся ТОЛЬКО из usecase)
 from bot.shared.decision import Decision, allow, deny
+
+
 def can_invite(role: str) -> Decision:
     return deny("Недоступно") if role == "banned" else allow()
 ```
@@ -111,6 +120,7 @@ def can_invite(role: str) -> Decision:
 # ports.py  (Protocol, узкий; имена/типы = pkg-клиент → байнд без адаптера)
 from typing import Protocol
 from bot.pkg.http_client.internal.referral import Referral
+
 
 class ReferralGateway(Protocol):
     async def get_referral(self, user_id: str) -> Referral: ...
@@ -126,6 +136,7 @@ from bot.features.referral import errors, policy
 from bot.features.referral.ports import ReferralGateway
 from bot.pkg.http_client.internal.referral import Referral
 from bot.platform.identity import BotIdentity
+
 
 class ReferralUsecase:
     def __init__(self, gateway: ReferralGateway, log: Logger) -> None:
@@ -151,14 +162,19 @@ from typing import Any
 from bot.features.referral import errors
 from bot.pkg.http_client.internal.referral import Referral
 
+
 def to_window(v: Referral) -> dict[str, Any]:
     return {"code": v.code, "invited": v.invited}
 
+
 def error_text(err: Exception) -> str:
     match err:
-        case errors.ReferralNotFound(): return "Реферальная программа недоступна."
-        case errors.ReferralError(): return "Сервис временно недоступен."
-        case _: raise err            # не наша — в recovery-middleware kit'а
+        case errors.ReferralNotFound():
+            return "Реферальная программа недоступна."
+        case errors.ReferralError():
+            return "Сервис временно недоступен."
+        case _:
+            raise err  # не наша — в recovery-middleware kit'а
 ```
 
 ## 6. Presentation
@@ -190,13 +206,14 @@ from bot.features.referral import errors, views
 from bot.features.referral.usecase import ReferralUsecase
 from bot.platform.identity import BotIdentity
 
+
 @inject
 async def referral_getter(
     uc: FromDishka[ReferralUsecase], identity: FromDishka[BotIdentity], **kwargs: Any
 ) -> dict[str, Any]:
     try:
         return views.to_window(await uc.view(identity))
-    except errors.ReferralError as exc:        # ловим в getter, окно не падает
+    except errors.ReferralError as exc:  # ловим в getter, окно не падает
         return {"code": "—", "invited": 0}
 ```
 
@@ -212,6 +229,7 @@ from dishka import FromDishka
 from dishka.integrations.aiogram import inject
 from bot.features.referral.usecase import ReferralUsecase
 from bot.platform.dialogs import states
+
 
 @inject
 async def on_referral_command(
@@ -230,11 +248,14 @@ from bot.features.referral.ports import ReferralGateway
 from bot.features.referral.usecase import ReferralUsecase
 from bot.pkg.http_client.internal.referral import ReferralAPI
 
+
 class ReferralProvider(Provider):
     scope = Scope.REQUEST
+
     @provide
     def gateway(self, api: ReferralAPI) -> ReferralGateway:
         return api
+
     @provide
     def usecase(self, gw: ReferralGateway, log: Logger) -> ReferralUsecase:
         return ReferralUsecase(gw, log)
@@ -279,6 +300,7 @@ from tests._fakes.harness import build_dp, make_container
 from bot.features import referral
 
 pytestmark = pytest.mark.dialog
+
 
 async def test_referral_command_opens_window() -> None:
     mm = MockMessageManager()

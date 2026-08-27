@@ -56,6 +56,8 @@
       "Read(.env.local)",
       "Edit(**/*.pem)",
       "Edit(**/*.key)",
+      "Edit(.env)",
+      "Edit(.env.local)",
       "Edit(uv.lock)",
       "Write(**/.claude/projects/**/memory/**)",
       "Edit(**/.claude/projects/**/memory/**)",

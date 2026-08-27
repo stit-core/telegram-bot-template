@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from aiogram import Dispatcher
+from aiogram import Dispatcher, Router
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from dishka.integrations.aiogram import AiogramProvider
 from pylibinfra.cachekit import Cache
@@ -48,18 +48,18 @@ class FakesProvider(Provider):
         return self._app
 
     # pkg-клиенты поверх фейкового транспорта: фичи получают реальные API-классы,
-    # I/O подменён in-memory заглушкой (мокаем границу бэкенда, не httpx)
+    # I/O подменён in-memory реализацией JsonApi (мокаем границу бэкенда, не httpx)
     @provide
     def profile_api(self) -> ProfileAPI:
-        return ProfileAPI(self._backend)  # type: ignore[arg-type]
+        return ProfileAPI(self._backend)
 
     @provide
     def booking_api(self) -> BookingAPI:
-        return BookingAPI(self._backend)  # type: ignore[arg-type]
+        return BookingAPI(self._backend)
 
     @provide
     def payments_api(self) -> PaymentsAPI:
-        return PaymentsAPI(self._backend)  # type: ignore[arg-type]
+        return PaymentsAPI(self._backend)
 
 
 def make_container(
@@ -84,7 +84,7 @@ def build_dp(
     container: AsyncContainer,
     message_manager: MockMessageManager,
     *,
-    routers: Iterable[object] = (),
+    routers: Iterable[Router] = (),
     commands: Iterable[CommandSpec] = (),
 ) -> Dispatcher:
     dp = Dispatcher(storage=JsonMemoryStorage())
@@ -93,7 +93,7 @@ def build_dp(
     for router in routers:
         # dialog'и — module-level синглтоны; в прошлом тесте уже привязаны к другому
         # Dispatcher. Детачим, чтобы переиспользовать в этом тесте (тесты идут последовательно).
-        router._parent_router = None  # type: ignore[attr-defined]
+        router._parent_router = None
         dp.include_router(router)
     bind_dialogs(dp, container, message_manager=message_manager)
     return dp

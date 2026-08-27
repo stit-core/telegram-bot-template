@@ -1,7 +1,9 @@
-"""http_client — клиенты HTTP-API: internal/ (наши бэкенды), external/ (сторонние).
+"""http_client — единственная дверь фич к бэкендам по HTTP.
 
-Каждый клиент — полноценная реализация области API (пути + wire-модели) поверх
-pylibinfra.httpclient.ApiClient; typed-ошибки (NotFound/Conflict/Unavailable) — kit'а.
+internal/ — клиенты своих бэкендов, external/ — сторонних; errors.py — таксономия
+typed-ошибок (реэкспорт кита), wire.py — база wire-моделей (extra="forbid", frozen),
+idempotency.py — канон Idempotency-Key, api.py — JsonApi-Protocol поверхности клиента.
+Фичи не импортят pylibinfra.httpclient и httpx напрямую (контракты importlinter.toml).
 """
 
 from bot.pkg.http_client.provider import CORE_BACKEND

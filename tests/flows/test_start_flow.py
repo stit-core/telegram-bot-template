@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import pytest
+from aiogram.types import InlineKeyboardMarkup, Message
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
 from tests._fakes.harness import build_dp, make_container
 
 from bot.features import start
+
+
+def _markup(msg: Message) -> InlineKeyboardMarkup:
+    assert msg.reply_markup is not None
+    return msg.reply_markup
+
 
 pytestmark = pytest.mark.dialog
 
@@ -22,7 +29,7 @@ async def test_start_shows_root_menu() -> None:
         # i18n не установлен в тест-контейнере → I18NFormat/greeting рендерят сам ключ;
         # mark_onboarded отработал до рендера → приветствие «с возвращением».
         assert msg.text == "start-welcome-back"
-        texts = [b.text for row in msg.reply_markup.inline_keyboard for b in row]
+        texts = [b.text for row in _markup(msg).inline_keyboard for b in row]
         assert "start-btn-profile" in texts
         assert "start-btn-buy" in texts
         assert "start-btn-lang" in texts

@@ -1,6 +1,6 @@
 # telegram-bot-template — гайд для агентов
 
-Тонкий шаблон Telegram-бота stit: **чистая бизнес-логика** на `aiogram` 3.28 + `aiogram_dialog`
+Тонкий шаблон Telegram-бота stit: **чистая бизнес-логика** на `aiogram` 3.31 + `aiogram_dialog`
 2.6 + `dishka` поверх `pylibinfra[tgbotkit]`. Вся инфра бота (Bot/Dispatcher/RedisStorage,
 middleware, webhook/polling runner, dishka-setup, error-UX, структурные логи, generic-механика
 i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не здесь. В шаблоне — фичи
@@ -40,7 +40,8 @@ features-ориентированный — фича `features/<feature>/{dialog
 
 Единый интерфейс `make <verb>`; `make help` — полный список. Канонический gate перед claim
 «готово»/push — **`make check`** = `ruff format --check` + `ruff check` + `lint-imports` +
-`mypy` + `pytest -m "not integration"`. `make run` — локальный polling-бот. `make test-integration`
+`mypy src tests` + `uv lock --check` + `pytest` с полом покрытия (`COVER_FLOOR`, Makefile).
+`make run` — локальный polling-бот. `make test-integration`
 — тесты с Docker (testcontainers redis/nats). Зависимости — `uv` (`make lock`/`make sync`).
 
 ## Карта: где что
@@ -66,11 +67,13 @@ features-ориентированный — фича `features/<feature>/{dialog
   `ASYNC`, `TID`, `T20` (запрет `print`), banned-api на `logging` — логи **только** через
   `pylibinfra.logkit.Logger`.
 - **mypy strict** + pydantic-плагин: полная типизация; Protocol-порты проверяются структурно.
-- **import-linter** (`importlinter.toml`, 5 контрактов): слоистость внутри фичи (DIP);
+- **import-linter** (`importlinter.toml`, 7 контрактов): слоистость внутри фичи (DIP);
   независимость фич (cross-feature только через `adapters.py`/`provider.py`); чистое ядро
-  (`usecase`/`policy`/`state`/`dto`) не импортит `httpx`/`aiogram`/`redis`/свой `infra/`
-  напрямую (wire-модели pkg и `pylibinfra.httpclient` ядру разрешены); `handlers`/`getters`
-  не зовут `policy` (доменные решения — в usecase); `pkg` не знает про features/platform/aiogram.
+  (`usecase`/`policy`/`state`/`dto`/`ports`/`errors`/`views`/`adapters`) не импортит
+  `httpx`/`aiogram`/`redis`/свой `infra/` напрямую; `handlers`/`getters` не зовут `policy`
+  (доменные решения — в usecase); `pkg` не знает про features/platform/aiogram; `httpx` — только
+  в `pkg`; presentation не ходит в `pkg`. **Одна дверь к бэкенду:** клиенты/ошибки/wire — через
+  `bot.pkg.http_client`; `pylibinfra.httpclient` вне pkg запрещён ruff banned-api (TID251).
 - Комментарии — только WHY (rule `comments`). `dialog_data`/`start_data` — только JSON-примитивы.
 - **Не городить велосипеды**: любой переиспользуемый/инфра-примитив (middleware, runner, новый
   вид рантайма, generic-механика) → **PR в `pylibinfra/tgbotkit`** через `/infra-handoff`, не

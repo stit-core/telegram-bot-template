@@ -80,7 +80,7 @@ class _ProfDeps(Provider):
 
     @provide
     def usecase(self) -> ProfileUsecase:
-        return ProfileUsecase(self._gateway, _Onboarding(), nop())  # type: ignore[arg-type]
+        return ProfileUsecase(self._gateway, _Onboarding(), nop())
 
     @provide
     def identity(self) -> BotIdentity:
@@ -96,22 +96,22 @@ def _prof_container(gateway: _ProfGateway) -> AsyncContainer:
 
 
 async def test_offer_getter_returns_offer_data() -> None:
-    offer = Offer(id="o1", title="Премиум", description="30д", amount=100)
+    offer = Offer(id="o1", title="Премиум", description="30д", amount=100, currency="XTR")
     container = _pay_container(_PayGateway(offer=offer))
     async with container() as rc:
-        data = await offer_getter(dishka_container=rc)  # type: ignore[call-arg]
+        data = await offer_getter(dishka_container=rc)
     assert data["title"] == "Премиум"
     assert data["amount"] == 100
     await container.close()
 
 
 async def test_offer_getter_soft_placeholder_on_error() -> None:
-    # бэкенд оффера недоступен — окно показывает заглушку, не падает в recovery
+    # бэкенд оффера недоступен — окно показывает заглушку (ключ .ftl без i18n), не recovery
     container = _pay_container(_PayGateway(error=UnavailableError("down")))
     async with container() as rc:
-        data = await offer_getter(dishka_container=rc)  # type: ignore[call-arg]
+        data = await offer_getter(dishka_container=rc)
     assert data["amount"] == 0
-    assert "недоступен" in data["description"]
+    assert data["description"] == "payments-error-unavailable"
     await container.close()
 
 
@@ -119,7 +119,7 @@ async def test_profile_getter_returns_window_data() -> None:
     user = User(name="Алиса", email="a@x.io", premium=True)
     container = _prof_container(_ProfGateway(user=user))
     async with container() as rc:
-        data = await profile_getter(dishka_container=rc)  # type: ignore[call-arg]
+        data = await profile_getter(dishka_container=rc)
     assert data["name"] == "Алиса"
     assert data["status"] == ""
     await container.close()
@@ -129,7 +129,7 @@ async def test_profile_getter_soft_status_on_domain_error() -> None:
     # ProfileError (бэкенд недоступен) → мягкий status, плейсхолдеры, окно живо
     container = _prof_container(_ProfGateway(error=prof_errors.ProfileError("down")))
     async with container() as rc:
-        data = await profile_getter(dishka_container=rc)  # type: ignore[call-arg]
+        data = await profile_getter(dishka_container=rc)
     assert data["name"] == "—"
     assert data["status"]  # непустой текст ошибки в окне
     await container.close()

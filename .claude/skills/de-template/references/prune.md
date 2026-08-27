@@ -36,7 +36,7 @@
 - `src/bot/platform/{identity,dialogs}/` — платформенная инфра-glue. Переиспользуется своими фичами.
 - `src/bot/platform/dialogs/{common,errors,states}.py` — общие виджеты, `AppErrorUX`, каталог StatesGroup. Каркас; чистится содержимое, не файлы.
 - `src/bot/shared/` — pure-утилиты (`decision`/`errors`/...). Переиспользуются всеми фичами.
-- `src/bot/pkg/http_client/{provider,internal/codec}.py` — каркас клиентов API (реестр + валидация контрактов). Чистятся провайды удалённых клиентов, не каркас.
+- `src/bot/pkg/http_client/{provider,errors,wire,idempotency,api}.py` — каркас клиентов API (реестр, таксономия ошибок, база wire-моделей, канон idempotency, JsonApi-Protocol). Чистятся провайды удалённых клиентов, не каркас.
 - `docs/stack/_templates/` — скаффолд-шаблоны стека.
 
 Условно (удаляй только при осознанном решении стека):
@@ -51,7 +51,7 @@ FSM-визарды, контент). Тогда HTTP-слой — мёртвый
 `start/infra/store.py: CacheOnboardingStore`).
 
 1. **Backend-фичи** (`profile`/`payments`/`booking` — у всех порт байндится на pkg-клиент) — прунь (чеклист выше) или перепиши порт на `infra/`-store.
-2. **`src/bot/pkg/http_client/`** целиком (`git rm -r`) — клиенты, codec, provider.
+2. **`src/bot/pkg/http_client/`** целиком (`git rm -r`) — клиенты, errors/wire/idempotency/api, provider.
 3. **`app.py`** — убери `ApiClientsProvider()` и `http_client.Provider()` (+ импорты).
 4. **`config.py`** — убери `HttpConfig`/`BackendsConfig`/импорт `CORE_BACKEND` (нет `HTTPCLIENT_*`-ручек).
 5. **`BotIdentity`** (`platform/identity/identity.py`) — выкинь поле `backend_user_id` (оно жило только ради бэкенда); в `IdentityProvider` убери `_resolve_backend_id`/чтение `backend_link_key`. Останутся `tg_id` + `role`.

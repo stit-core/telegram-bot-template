@@ -2,20 +2,29 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import httpx
 import pytest
 import respx
-from pylibinfra.httpclient import ApiClient, UnavailableError
+from pylibinfra.httpclient import ApiClient
 
+from bot.pkg.http_client.errors import UnavailableError
 from bot.pkg.http_client.internal.payments import PaymentsAPI
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.pkg
+
+
+def _key(operation: str, charge_id: str) -> str:
+    return f"{operation}:{hashlib.sha256(charge_id.encode()).hexdigest()}"
 
 
 @respx.mock
 async def test_get_offer_returns_model(api: ApiClient) -> None:
     respx.get("http://backend/v1/offers/o1").mock(
-        return_value=httpx.Response(200, json={"id": "o1", "title": "Pro", "amount": 100})
+        return_value=httpx.Response(
+            200, json={"id": "o1", "title": "Pro", "amount": 100, "currency": "XTR"}
+        )
     )
     offer = await PaymentsAPI(api).get_offer("o1")
     assert offer.title == "Pro"
@@ -28,7 +37,7 @@ async def test_fulfill_order_conflict_is_success(api: ApiClient) -> None:
         return_value=httpx.Response(409)
     )
     await PaymentsAPI(api).fulfill_order("ord1", "ch1")
-    assert route.calls.last.request.headers["Idempotency-Key"] == "ch1"
+    assert route.calls.last.request.headers["Idempotency-Key"] == _key("order-fulfill", "ch1")
 
 
 @respx.mock
@@ -44,7 +53,7 @@ async def test_revoke_order_404_is_success(api: ApiClient) -> None:
         return_value=httpx.Response(404)
     )
     await PaymentsAPI(api).revoke_order("ord1", "ch1")
-    assert route.calls.last.request.headers["Idempotency-Key"] == "revoke:ch1"
+    assert route.calls.last.request.headers["Idempotency-Key"] == _key("order-revoke", "ch1")
 
 
 @respx.mock

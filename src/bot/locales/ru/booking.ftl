@@ -12,3 +12,9 @@ booking-confirm =
     • Опции: { $services }
     • Гостей: { $guests }
     • Адрес: { $address }
+booking-error-guests = Введите число гостей от 1 до 10.
+booking-error-address = Адрес слишком короткий, уточните.
+booking-error-conflict = Заказ уже оформлен или изменился — начните заново.
+booking-error-unavailable = Не удалось оформить заказ, попробуйте позже.
+booking-error-not-number = Это не число. Введите количество гостей цифрами.
+booking-submitted = Заказ оформлен! Номер: { $id }

@@ -16,12 +16,18 @@ from aiogram_dialog.widgets.input import ManagedTextInput
 from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
+from pylibinfra.tgbotkit.i18n import I18N_FORMAT_KEY
 
 from bot.features.booking import views
 from bot.features.booking.errors import BookingError
 from bot.features.booking.state import BookingDraft, BookingSG
 from bot.features.booking.usecase import BookingUsecase
 from bot.platform.identity import BotIdentity
+from bot.shared.i18n import render
+
+
+def _fmt(manager: DialogManager) -> object:
+    return manager.middleware_data.get(I18N_FORMAT_KEY)
 
 
 def _draft(manager: DialogManager) -> BookingDraft:
@@ -63,7 +69,7 @@ async def on_guests_success(
     try:
         step = uc.set_guests(_draft(manager), value)
     except BookingError as exc:
-        await message.answer(views.error_text(exc))
+        await message.answer(render(_fmt(manager), views.error_text(exc)))
         return
     _save(manager, step.draft)
     await manager.switch_to(BookingSG.ADDRESS if step.address_required else BookingSG.CONFIRM)
@@ -72,7 +78,7 @@ async def on_guests_success(
 async def on_guests_error(
     message: Message, widget: ManagedTextInput[int], manager: DialogManager, error: ValueError
 ) -> None:
-    await message.answer("Это не число. Введите количество гостей цифрами.")
+    await message.answer(render(_fmt(manager), "booking-error-not-number"))
 
 
 @inject
@@ -87,7 +93,7 @@ async def on_address_success(
     try:
         draft = uc.set_address(_draft(manager), value)
     except BookingError as exc:
-        await message.answer(views.error_text(exc))
+        await message.answer(render(_fmt(manager), views.error_text(exc)))
         return
     _save(manager, draft)
     await manager.switch_to(BookingSG.CONFIRM)
@@ -102,11 +108,13 @@ async def on_submit(
     uc: FromDishka[BookingUsecase],
     identity: FromDishka[BotIdentity],
 ) -> None:
-    idem = str(manager.dialog_data.get("draft_id") or uuid.uuid4().hex)
+    draft_id = str(manager.dialog_data.get("draft_id") or uuid.uuid4().hex)
     try:
-        result = await uc.submit(identity.backend_user_id, _draft(manager), idem)
+        result = await uc.submit(identity.backend_user_id, _draft(manager), draft_id)
     except BookingError as exc:
-        await callback.answer(views.error_text(exc), show_alert=True)
+        await callback.answer(render(_fmt(manager), views.error_text(exc)), show_alert=True)
         return
-    await callback.answer(f"Заказ оформлен! Номер: {result.confirmation_id}")
+    await callback.answer(
+        render(_fmt(manager), "booking-submitted", {"id": result.confirmation_id})
+    )
     await manager.done()

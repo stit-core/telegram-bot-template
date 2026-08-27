@@ -1,7 +1,7 @@
-"""Unit: profile.views — единственная точка маппинга доменной ошибки → user-текст.
+"""Unit: profile.views — единственная точка маппинга доменной ошибки → ключ user-текста.
 
-error_text покрывает каждую ветку match: NotFound / Forbidden|NameRejected / базовая
-ProfileError / не-наша ошибка (пробрасывается в recovery-middleware kit'а).
+error_text покрывает каждую ветку match: NotFound / Forbidden / NameRejected / Conflict /
+базовая ProfileError / не-наша ошибка (пробрасывается в recovery-middleware kit'а).
 """
 
 from __future__ import annotations
@@ -24,24 +24,17 @@ def test_to_window_no_badge_when_not_premium() -> None:
     assert data["badge"] == ""
 
 
-def test_error_text_not_found_hints_start() -> None:
-    assert "/start" in views.error_text(errors.ProfileNotFound("gone"))
-
-
-def test_error_text_forbidden_uses_reason() -> None:
-    assert views.error_text(errors.ProfileForbidden("banned")) == "banned"
-
-
-def test_error_text_name_rejected_uses_reason() -> None:
-    assert views.error_text(errors.NameRejected("слишком длинное")) == "слишком длинное"
-
-
-def test_error_text_forbidden_without_reason_falls_back() -> None:
-    assert views.error_text(errors.ProfileForbidden("")) == "Действие недоступно."
-
-
-def test_error_text_base_profile_error_is_soft() -> None:
-    assert "недоступен" in views.error_text(errors.ProfileError("down"))
+def test_error_text_maps_each_sentinel_to_key() -> None:
+    cases = [
+        (errors.ProfileNotFound(), "profile-error-not-found"),
+        (errors.ProfileForbidden("banned"), "profile-error-forbidden"),
+        (errors.NameRejected("слишком длинное"), "profile-error-name-rejected"),
+        (errors.ProfileConflict(), "profile-error-conflict"),
+        (errors.ProfileUnavailable(), "profile-error-unavailable"),
+        (errors.ProfileError("base"), "profile-error-unavailable"),
+    ]
+    for err, key in cases:
+        assert views.error_text(err) == key
 
 
 def test_error_text_reraises_foreign_error() -> None:

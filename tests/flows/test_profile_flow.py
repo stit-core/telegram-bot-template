@@ -35,8 +35,8 @@ async def test_profile_view_then_rename() -> None:
         mm.reset_history()
         await client.click(menu, InlineButtonTextLocator("start-btn-profile"))
         view = mm.one_message()
-        assert "Алиса" in view.text
-        assert "premium" in view.text
+        assert "Алиса" in (view.text or "")
+        assert "premium" in (view.text or "")
 
         mm.reset_history()
         await client.click(view, InlineButtonTextLocator("profile-edit-name"))
@@ -45,7 +45,7 @@ async def test_profile_view_then_rename() -> None:
         mm.reset_history()
         await client.send("Боб")  # TextInput.on_success → rename → switch_to VIEW
         after = mm.one_message()
-        assert "Боб" in after.text
+        assert "Боб" in (after.text or "")
         assert ("PATCH", "/v1/users/1") in backend.calls
     finally:
         await container.close()

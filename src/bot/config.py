@@ -15,7 +15,7 @@ from dishka import Provider, Scope, provide
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pylibinfra.cachekit import Config as CacheConfig
-from pylibinfra.httpclient import BackendsConfig
+from pylibinfra.httpclient import BackendBreakerConfig, BackendConfig, BackendsConfig
 from pylibinfra.httpclient import Config as HttpConfig
 from pylibinfra.logkit import Config as LogConfig
 from pylibinfra.logkit import RedactConfig
@@ -80,8 +80,24 @@ class AppConfigProvider(Provider):
     @provide
     def backends(self, http: HttpConfig) -> BackendsConfig:
         # единственный internal-бэкенд «core» (profile/booking/payments — один base_url):
-        # переиспользует одиночный HTTPCLIENT_*-конфиг; breaker получит имя «core»
-        return BackendsConfig(backends={CORE_BACKEND: http})
+        # дешёвый режим одним набором HTTPCLIENT_*-env. base_url обязателен — пустой
+        # валит контейнер на старте (fail-fast), не первого юзера. Второй бэкенд —
+        # свой BackendConfig здесь же (см. skill scaffold, backend-port).
+        return BackendsConfig(
+            backends={
+                CORE_BACKEND: BackendConfig(
+                    base_url=http.base_url,
+                    timeout=http.timeout,
+                    max_retries=http.max_retries,
+                    retry_wait=http.retry_wait,
+                    breaker=BackendBreakerConfig(
+                        failure_threshold=http.breaker.failure_threshold,
+                        recovery_timeout=http.breaker.recovery_timeout,
+                        success_threshold=http.breaker.success_threshold,
+                    ),
+                )
+            }
+        )
 
     @provide
     def nats(self) -> NatsConfig:
