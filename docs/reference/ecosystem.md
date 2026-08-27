@@ -2,10 +2,12 @@
 
 Место шаблона в экосистеме stit: **6 форкаемых шаблонов** `stit-core/` (`corp-infra-template`,
 `project-infra-template-compose`, `go-backend-template`, `spa-frontend-template`,
-`business-strategy-template`, `telegram-bot-template`) + общая инфра-библиотека `stit-core/pylibinfra`
-(kit'ы). Корп control-plane — репо `corp-infra-template` (managed = инстанс на `*.stit.tech`;
-self-hosted = форк `<org>/infra`). Этот шаблон — **фронтенд-сервис**: чистая бизнес-логика на
-`aiogram_dialog` поверх `pylibinfra[tgbotkit]`.
+`business-strategy-template`, `telegram-bot-template`) + 3 общие библиотеки: `stit-core/pylibinfra`
+(kit'ы, `tgbotkit` — рантайм этого шаблона), `stit-core/golibinfra` (Go-kits бэкендов),
+`stit-core/ui-lib` (`@stit/ui`, фронт). Корп control-plane — репо `corp-infra-template` (managed =
+инстанс на `*.stit.tech`; self-hosted = форк `<org>/infra`). Канон контрактов и операционной модели
+агентов — `corp-infra-template/docs/ecosystem.md`. Этот шаблон — **фронтенд-сервис**: чистая
+бизнес-логика на `aiogram_dialog` поверх `pylibinfra[tgbotkit]`.
 
 ## Роль
 
@@ -37,8 +39,10 @@ identity-link).
   как go-сервис на `go.mod`-версию.
 - **Зависит от:** `corp-infra-template` (контракт registry образов);
   `git.${DOMAIN}` (push images); продуктовые бэкенды (`HTTPCLIENT_*`, NATS-stream).
-- **Используется:** `<org>/infra` (форк `project-infra-template-compose`) — пуллит образ, пиня тег
-  (`bot_tag=<tag>`) в конфиге деплой-репо + `make ship` на проектной VPS.
+- **Используется:** `<org>/infra` (форк `project-infra-template-compose`) — пуллит образ; rollout
+  тега — `make bump SVC=bot TAG=<tag>` там (правит `BOT_TAG` в `.env` на VPS + force-recreate).
+  `<org>/infra` — операционный хаб проекта: задачи входят туда, агенты приходят сюда и работают
+  обвязкой этого репо (`make check` — гейт); прямой заход разработчика сюда равно нормален.
 - **Зависит (design-time) от:** `<org>/strategy` (форк `business-strategy-template`) — слой
   `telegram-bot-flow/<surface>/`. `/dialog-deep-dive` и `/scaffold` читают его при разработке;
   рантайм-образ от стратегии не зависит (это source-of-truth проектирования, не deploy-звено).
@@ -52,7 +56,7 @@ identity-link).
 |---|---|---|
 | `telegram-bot-flow/<surface>/` (фичи `dialog/window/use-case` + сквозные `command/notification`, `stable`) | `/dialog-deep-dive` (транслятор) → карта `docs/stack/dialogs.md` | `StatesGroup`, окна, виджеты, use-case'ы-оркестраторы, getter'ы, обработчики |
 | `interface/<surface>/` (зеркало UX) | контекст синтеза | соответствие виджетов атомам |
-| `domains/<ctx>/{use-cases,events}/` | рефы `use-case:<ctx>.<Operation>`/`event:` (в `Dependencies` bot UC / `notification`) | порт фичи → pkg-клиент, NATS-subject |
+| `services/<svc>/domains/<ctx>/` (use-case'ы, события) | рефы `use-case:<ctx>.<Operation>`/`event:` (в `Dependencies` bot UC / `notification`) | порт фичи → pkg-клиент, NATS-subject |
 
 Маппинг полей артефакта в файлы фичи — [dialog-mapping.md](dialog-mapping.md). Поверхности
 изолированы: бот читает слой одной bot-поверхности (`type: bot` из реестра `surface.md` стратегии).

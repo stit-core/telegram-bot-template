@@ -11,7 +11,7 @@
 # работает только с публичным pylibinfra.
 #
 # Зона ответственности этого репо: код → image в registry. На STOP — всё.
-# Деплой (bot_tag в env/compose + make ship) — в <org>/infra, НЕ здесь.
+# Деплой (make bump SVC=bot TAG=… — BOT_TAG в .env VPS) — в <org>/infra, НЕ здесь.
 #
 # Неинтерактивный запуск (нет TTY / EOF на prompt) → отмена (exit 1):
 # accidental release невозможен. Для CI-автоматизации: RELEASE_YES=1.
@@ -87,7 +87,7 @@ echo "✓ released $IMAGE"
 # --- агрегированный INFRA-HANDOFF ---
 echo
 echo "=== INFRA HANDOFF · передай инфра-админу out-of-band ==="
-echo "bot_tag → $VERSION   (один образ; migrate-образа нет, бот stateless)"
+echo "BOT_TAG → $VERSION   (один образ; migrate-образа нет, бот stateless)"
 
 # Single-file модель: единый roadmap.md. На каждую `### <slug>`-секцию под `## Active`
 # захватываем подсекцию `**Infra impact.**` (bold-лейбл) до следующего bold-лейбла /
@@ -131,7 +131,8 @@ fi
 cat <<EOF
 
 Действия инфра-стороны:
-  проект:  в <org>/infra выставь bot_tag=$VERSION (env/compose) → make ship
+  проект:  в <org>/infra — make bump SVC=bot TAG=$VERSION
+           (правит BOT_TAG в .env на VPS + force-recreate)
 
 === STOP. Зона этого репо закрыта (image в registry). Деплой — не здесь. ===
 EOF

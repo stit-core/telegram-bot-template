@@ -1,4 +1,4 @@
-.PHONY: help setup fmt fmt-check lint typecheck test test-integration test-cover check run status validate-stack-docs release lock sync
+.PHONY: help setup doctor fmt fmt-check lint typecheck test test-integration test-cover check run status validate-stack-docs plan-check release lock sync
 
 # Тонкий словарь verbs (зеркало go-backend-template), реализация делегируется uv.
 # Канонический гейт перед claim «готово»/push — `make check`.
@@ -14,6 +14,9 @@ setup: ## uv sync (dev) + git-хуки (commit-msg/pre-commit/pre-push)
 	@cp scripts/git-hooks/pre-push  .git/hooks/pre-push
 	@chmod +x .git/hooks/commit-msg .git/hooks/pre-commit .git/hooks/pre-push
 	@echo "✓ setup: deps + git hooks"
+
+doctor: ## preflight окружения: uv, docker-логин к registry, git-хуки, план
+	@bash scripts/doctor.sh
 
 lock: ## пересобрать uv.lock
 	uv lock
@@ -61,6 +64,9 @@ status: ## сводка состояния репо (ветка/drift/план/�
 
 validate-stack-docs: ## проверить целостность docs/stack/* (вход de-template)
 	@bash scripts/validate-stack-docs.sh
+
+plan-check: ## структура единого плана .claude/plans/roadmap.md
+	@bash scripts/validate-plan.sh
 
 ##@ RELEASE
 release: ## release VERSION=vX.Y.Z — собрать+запушить образ + INFRA-HANDOFF
