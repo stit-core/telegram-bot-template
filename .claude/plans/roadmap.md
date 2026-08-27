@@ -14,7 +14,17 @@ Active-секцией, а не хвостом в удаляемой.
 **Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
 mypy + pytest). См. `CLAUDE.md`.
 
-**Current focus:** harden-http-boundary
+**Current focus:** none
+
+## Active
+
+## Backlog` или новой
+Active-секцией, а не хвостом в удаляемой.
+
+**Gate.** Перед claim «готово»/push — `make check` зелёный (ruff format/check + import-linter +
+mypy + pytest). См. `CLAUDE.md`.
+
+**Current focus:** none
 
 ## Active
 
@@ -134,6 +144,12 @@ import-linter/ruff/mypy); prune `is_first_time`/`adapters.py` (остаётся 
 
 ## Backlog
 
+- INFRA-HANDOFF (не сдан — агрегировать в ближайший `make release`): (1) runtime-dep пин
+  `pylibinfra` v0.3.0 → v0.6.0 — пересборка образа; natskit v0.4 сменил env-ручки:
+  `NATS_JS_DLQ_ENABLED`/`NATS_JS_FLOW_CONTROL`/`NATS_JS_IDLE_HEARTBEAT` удалены, DLQ теперь
+  `NATS_JS_DLQ_SUBJECT`, backoff — `NATS_JS_NAK_BACKOFF` (сек). (2) `HTTPCLIENT_BREAKER_NAME`
+  удалён (имя breaker'а = имя бэкенда, только код); `HTTPCLIENT_BASE_URL` обязателен — пустой
+  валит старт (задуманный fail-fast); `HTTPCLIENT_BACKENDS` требует per-backend `base_url`.
 - Двойные HTTP-спаны httpclient (ручной span + `HTTPXClientInstrumentor`) — проверить на живом
   стеке, при подтверждении убрать ручной.
 - Auth-hook httpclient сверх статических per-backend `headers` (токен-провайдер per-call).
