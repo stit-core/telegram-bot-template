@@ -31,10 +31,14 @@ paths:
   отдаёт поверх него `ProfileAPI`/`BookingAPI`/`PaymentsAPI` — без `type: ignore`), не
   `httpx`/`Bot`/`Dispatcher`. Исключение — `tests/pkg/` намеренно тестирует транспорт-границу
   через `respx`.
-- Фон — фейк `Delivery` (`tests/_fakes/delivery.py`) + фейк `Cache`/`Redis`
-  (`tests/_fakes/cache.py`/`redis.py`), не реальный NATS.
+- Фон — фейк `Delivery` (`tests/_fakes/delivery.py`) + фейки lib'ы `cachekit.MemoryCache` /
+  `testkit.bottest.MemoryRedis` (та же семантика TTL/NX/Lua, часы — `clockkit.Tickable`), не
+  реальный NATS и не самописный dict.
 - `JsonMemoryStorage` сериализует тем же json-кодеком, что прод-Redis → ловит несериализуемое в
   `dialog_data` (rule `storage-serialization`). Не подменяй его in-memory dict'ом.
+- Intent-id диалогов в тестах — счётчик (autouse-фикстура `tests/conftest.py`): aiogram_dialog
+  строит id из секунд времени + `random(0..99)`, и два диалога одной секунды (`/start` → `Start`)
+  делят id в 1 % случаев → `UnknownIntent` на `done()`. Не отключай фикстуру «ради реализма».
 
 ## Локаторы кнопок
 

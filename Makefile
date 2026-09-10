@@ -66,7 +66,7 @@ check: ## КАНОНИЧЕСКИЙ gate: fmt-check + lint + typecheck + lock-che
 	@echo "✓ check clean"
 
 ##@ RUN
-run: ## локальный polling-бот (нужен BOT_TOKEN; логи в stdout по LOG_STDOUT)
+run: ## локальный polling-бот (нужен BOT_TOKEN; JSON-логи в stdout, LOG_FORMAT=text для глаз)
 	uv run python -m bot
 
 ##@ INTEL

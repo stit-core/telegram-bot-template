@@ -18,7 +18,7 @@ make release VERSION=vX.Y.Z
 `scripts/release.sh`: валидирует semver (`:latest`/lightweight отвергаются) → confirm-промпт →
 annotated tag на HEAD → preflight (main / clean / docker-auth) → `docker buildx --platform
 linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный
-`pylibinfra[tgbotkit]` через `--mount=type=ssh`; `VERSION`/`GIT_SHA` зашиты в образ) → печатает
+`pylibinfra[tgbotkit]` через build-secret `git_token`; `SERVICE_VERSION`/`GIT_COMMIT` зашиты в образ) → печатает
 агрегированный **INFRA-HANDOFF** и STOP.
 
 Pre-flight (до команды): зелёный `make check` + startup-smoke (`pytest -k collision`: `setup_dialogs`
@@ -44,8 +44,8 @@ Pre-flight (до команды): зелёный `make check` + startup-smoke (`
 
 ## Verify (в infra-репо)
 
-`make ps` → bot `healthy` (httpkit `/health`); в логах на старте `"starting" service=<bot>
-version=<v> commit=<sha>`.
+`make ps` → bot `healthy` (httpkit `/health`; `/ready` — пробы Bot API/Redis/NATS); в логах на
+старте `"starting" service=bot version=<v> commit=<sha>` (`SERVICE_VERSION`/`GIT_COMMIT` из образа).
 
 Deploy-замечание: платёжные фичи на Telegram Stars (подписки/возвраты) требуют включённых
 subscriptions/refunds у бота в BotFather — это настройка бота, не env.

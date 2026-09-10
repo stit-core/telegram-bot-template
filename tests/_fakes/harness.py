@@ -1,7 +1,7 @@
 """Тест-харнес: сборка dishka-контейнера с фейками инфры + Dispatcher с привязкой диалогов.
 
-Повторяет проводку рантайма kit'а в миниатюре: AiogramProvider (REQUEST-контекст), фейк
-Cache/Logger/AppConfig + pkg-клиенты поверх FakeApiClient, IdentityProvider + переданные
+Повторяет проводку рантайма kit'а в миниатюре: AiogramProvider (REQUEST-контекст), фейки
+Cache/Redis/Logger/AppConfig + pkg-клиенты поверх FakeApiClient, IdentityProvider + переданные
 фиче-провайдеры; затем bind_dialogs (setup_dishka + setup_dialogs с MockMessageManager).
 """
 
@@ -9,12 +9,18 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+import redis.asyncio as aioredis
 from aiogram import Dispatcher, Router
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from dishka.integrations.aiogram import AiogramProvider
-from pylibinfra.cachekit import Cache
+from pylibinfra.cachekit import Cache, MemoryCache
 from pylibinfra.logkit import Logger, nop
-from pylibinfra.testkit.bottest import JsonMemoryStorage, MockMessageManager, bind_dialogs
+from pylibinfra.testkit.bottest import (
+    JsonMemoryStorage,
+    MemoryRedis,
+    MockMessageManager,
+    bind_dialogs,
+)
 from pylibinfra.tgbotkit import CommandSpec
 
 from bot.config import AppConfig
@@ -23,7 +29,6 @@ from bot.pkg.http_client.internal.payments import PaymentsAPI
 from bot.pkg.http_client.internal.profile import ProfileAPI
 from bot.platform.identity import IdentityProvider
 from tests._fakes.backend import FakeApiClient
-from tests._fakes.cache import FakeCache
 
 
 class FakesProvider(Provider):
@@ -38,6 +43,11 @@ class FakesProvider(Provider):
     @provide
     def cache(self) -> Cache:
         return self._cache
+
+    @provide
+    def redis(self) -> aioredis.Redis:
+        # гварды платежей (ChargeGuard/RefundGuard) живут на сыром клиенте, не на Cache
+        return MemoryRedis()  # type: ignore[return-value]
 
     @provide
     def logger(self) -> Logger:
@@ -70,7 +80,7 @@ def make_container(
 ) -> AsyncContainer:
     return make_async_container(
         FakesProvider(
-            cache or FakeCache(),
+            cache or MemoryCache(),
             app or AppConfig(),
             backend or FakeApiClient(),
         ),

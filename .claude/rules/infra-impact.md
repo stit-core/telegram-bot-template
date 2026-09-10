@@ -22,7 +22,7 @@ paths:
 
 | Класс | Триггер | Кому |
 |---|---|---|
-| **Env/секреты** | новый/изменённый required env (`BOT_*`/`APP_*`/`REDIS_URL`/`NATS_*`/`HTTPCLIENT_*`), читаемый приложением; новый required секрет (`BOT_TOKEN`/`BOT_WEBHOOK_SECRET`-класс) | проект (compose env) |
+| **Env/секреты** | новый/изменённый required env (`BOT_*`/`APP_*`/`REDIS_*`/`NATS_*`/`HTTPCLIENT_*`/`HTTP_*`/`LOG_*`), читаемый приложением; новый required секрет (`BOT_TOKEN`/`BOT_WEBHOOK_SECRET`-класс) | проект (compose env) |
 | **Webhook/runtime-режим** | `BOT_MODE` polling↔webhook, `BOT_WEBHOOK_*` (base_url/path/secret), число инстансов, graceful-параметры | проект (ingress/TLS, ≥2 инстанса, single-flight set_webhook) |
 | **Cross-service контракт** | новый/изменённый NATS `stream`/`subject`/`durable` для событий бэкенда; breaking-изменение payload `deliver_*` | проект + владелец события |
 | **Runtime-deps/ёмкость** | новая внешняя зависимость (включить JetStream, новый бэкенд `*_BASE_URL`); смена `pylibinfra`-ревизии в `pyproject`; изменения Dockerfile (база/extra) | проект |

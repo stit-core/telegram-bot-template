@@ -16,14 +16,17 @@ paths:
 ## Что шаблон делает здесь (и только это)
 
 - **`app.py`** — единый composition root: `ExtensionProvider` + `build_container` + `run()`
-  (`make_async_container` → `BotRunner.run()`). Никакой проводки рантайма. Порядок провайдеров
-  значим: `BotProvider` даёт **дефолты** (Logger=nop, bundles, `ErrorUX`, `Optional*`), поэтому
-  `LogkitProvider` и `ExtensionProvider` идут **после** него (last-wins). `AiogramProvider`
-  обязателен (REQUEST-контекст для identity).
+  (`make_async_container` → лог `starting` → `BotRunner.run()`). Никакой проводки рантайма.
+  Порядок провайдеров значим: kit'ы дают **дефолты** своих Optional*/кортежей (`LogkitProvider` —
+  redact, `HttpProvider` — пробы, `BotProvider` — bundles/`ErrorUX`/`Optional*`), поэтому
+  `AppConfigProvider` и `ExtensionProvider` идут **после** них (last-wins). `Logger`/`Clock` дают
+  `LogkitProvider`/`ClockProvider`; `HttpProvider(autostart=False)` — порт ведёт `BotRunner`;
+  `AiogramProvider` обязателен (REQUEST-контекст для identity).
 - **`ExtensionProvider`** (в `app.py`) — наполняет точки расширения kit'а бизнесом:
   `RouterBundle` (диалоги), `CommandBundle` (`CommandSpec` команд/`pre_checkout`/`successful_payment`),
-  `NotifierBundle`, `ErrorUX`, `OptionalLocaleResolver`, `OptionalStreamBus`. **Декларируешь, что
-  подключить — не как это работает.**
+  `NotifierBundle`, `ErrorUX`, `OptionalLocaleResolver`, `OptionalStreamBus`, `healthkit.Probes`
+  (`tgbotkit.probe`/`redis_probe` + пробы подключённых kit'ов). **Декларируешь, что подключить —
+  не как это работает.**
 - **`platform/`** — общее **бизнес-проектное**: `identity/` (Update→`BotIdentity`), `dialogs/`
   (`states.py`, `common.py`, `errors.py:ErrorUX`), `webapp/` (валидатор initData), `links.py`.
   Это бизнес-glue, **не** инфра-проводка. Клиенты API — не сюда: `pkg/http_client/`
@@ -31,8 +34,8 @@ paths:
 
 ## Запрещено
 
-- ❌ Собирать в шаблоне `Dispatcher`/`Bot`/`RedisStorage`/middleware/webhook-app/`setup_dialogs`/
-  `setup_dishka`/error-handler-регистрацию — это поверхность kit'а.
+- ❌ Собирать в шаблоне `Dispatcher`/`Bot`/`RedisStorage`/middleware/webhook-app/HTTP-сервер/
+  `setup_dialogs`/`setup_dishka`/error-handler-регистрацию — это поверхность kit'а.
 - ❌ Прямые инфра-пины в `pyproject` (aiogram/redis/httpx) — всё транзитом `pylibinfra[tgbotkit]`.
 - ❌ Дублировать/обходить дефолты kit'а вместо override через провайдер после `BotProvider`.
 - ❌ Тащить инфра-механику в `platform/` под видом «общего» (нет incoming-Update — это фон/kit).

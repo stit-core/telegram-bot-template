@@ -7,11 +7,11 @@
 ## Порядок и маппинг
 
 ### 1. dependencies → `docs/stack/dependencies.md`
-- kit-провайдеры в `build_container()` (`app.py`) — **только нужные** киты `pylibinfra`. Если форк без NATS — убери `NatsProvider()` и `OptionalStreamBus`/`notifiers`. Local-only бот (без HTTP-бэкенда) — убери `ApiClientsProvider()` + `http_client.Provider()` и весь pkg/портовый HTTP-слой (чеклист — `references/prune.md` › «Local-only бот»); несколько бэкендов — наоборот, записи в `BackendsConfig` (см. п.3).
-- порядок провайдеров критичен: `BotProvider()` даёт дефолты (Logger=nop, bundles, ErrorUX, Optional*), поэтому `LogkitProvider()` и `ExtensionProvider()` — **после** него (last-wins). `AiogramProvider()` обязателен (REQUEST-контекст для identity).
+- kit-провайдеры в `build_container()` (`app.py`) — **только нужные** киты `pylibinfra`; ядро бота всегда: `LogkitProvider`, `ClockProvider`, `CachekitProvider`, `HttpProvider(autostart=False)`, `BotProvider`, `AiogramProvider`. Если форк без NATS — убери `NatsProvider()`, `OptionalStreamBus`/`notifiers` и `natskit.probe` из `probes`. Local-only бот (без HTTP-бэкенда) — убери `ApiClientsProvider()` + `http_client.Provider()` и весь pkg/портовый HTTP-слой (чеклист — `references/prune.md` › «Local-only бот»); несколько бэкендов — наоборот, записи в `BackendsConfig` (см. п.3).
+- порядок провайдеров критичен: kit'ы дают дефолты своих Optional*/кортежей (`LogkitProvider` — redact, `HttpProvider` — пробы, `BotProvider` — bundles/ErrorUX/Optional*), поэтому `AppConfigProvider()` и `ExtensionProvider()` — **после** них (last-wins). `Logger`/`Clock` — от `LogkitProvider`/`ClockProvider`, kit'ы их дефолтами не подменяют. `AiogramProvider()` обязателен (REQUEST-контекст для identity).
 
 ### 2. storage → `docs/stack/storage.md`
-- Redis-проводка — **в kit'е** (`RedisStorage` с `with_destiny`, `RedisEventIsolation`). Шаблон ничего не настраивает руками, кроме `REDIS_URL` (через cachekit `Config` в `config.py`).
+- Redis-проводка — **в kit'е** (`RedisStorage` с `with_destiny`, `RedisEventIsolation`). Шаблон ничего не настраивает руками, кроме `REDIS_*` (`cachekit.new_config()` в `config.py`; Redis ≥ 7, PING на старте).
 - Если стек заявил кастомные TTL/префиксы за пределами дефолтов kit'а — это PR в `tgbotkit`, не wiring.
 - Проверь: `storage` НЕ Memory (Memory теряет диалоги при рестарте/мультиинстансе). Если в форке где-то Memory — баг.
 
@@ -39,11 +39,12 @@
 - WebApp initData — `platform/webapp/init_data.py` (`validate_init_data`); убери, если без Mini App.
 
 ### 7. observability → `docs/stack/observability.md`
-- health/ready — httpkit (поднимается kit'ом при webhook/health-режиме).
+- health/ready — httpkit: `HttpProvider(autostart=False)` в `build_container()` (порт `HTTP_ADDR` занимает `BotRunner` в любом режиме), `httpkit.new_config()` в `config.py`; пробы `/ready` — `ExtensionProvider.probes` → `healthkit.Probes` (`tgbotkit.probe`/`redis_probe` + пробы подключённых kit'ов: `natskit.probe` при NATS).
+- логи — `logkit.new_config()` + `logkit.OptionalRedactConfig` (`new_redact_config()`) в `config.py` (`LOG_*`); лог `starting` с `SERVICE_VERSION`/`GIT_COMMIT` (`AppConfig`) уже в `app.run()`.
 
 ### 8. runtime → `docs/stack/runtime.md` (последним)
-- `BOT_MODE` (polling/webhook), webhook-секрет, инстансы — через tgbotkit `Config` в `config.py`. Сам выбор runner'а (polling/webhook) — внутри `BotRunner`, шаблон лишь задаёт `Config`.
-- i18n-каталоги: `config.py` строит `I18nConfig(default_locale, locales_dir, resources)` — синхронизируй `_I18N_RESOURCES`/`_DEFAULT_LOCALE` с фактическими фичами и локалями.
+- `BOT_MODE` (polling/webhook), webhook-секрет, инстансы — через `tgbotkit.new_config()` в `config.py` (fail-fast по `BOT_*`; webhook требует https-базу и секрет). Сам выбор runner'а (polling/webhook) — внутри `BotRunner`, шаблон лишь задаёт `Config`.
+- i18n-каталоги: `config.py` подменяет `i18n` копией конфига (`model_copy(update={"i18n": I18nConfig...})`; `Config` frozen) — синхронизируй `_I18N_RESOURCES`/`_DEFAULT_LOCALE` с фактическими фичами и локалями; `BOT_I18N_*` из ENV приоритетнее.
 - graceful shutdown (drain → `container.close()` → `bot.session.close()`) — в kit'е; `app.run()` лишь резолвит `BotRunner` и зовёт `.run()`.
 
 ## Принцип

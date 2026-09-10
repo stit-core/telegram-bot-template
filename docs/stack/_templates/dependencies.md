@@ -13,8 +13,9 @@ status: draft
 (tgbotkit + aiogram + aiogram_dialog + fluent.runtime) + транзитивом (dishka/redis/httpx/otel/fastapi/nats).>
 
 ## Kits used
-<Какие kit'ы pylibinfra реально задействованы: tgbotkit, httpclient, cachekit, natskit, logkit
-(+ httpkit для health/webhook). Не тянуть лишнее.>
+<Какие kit'ы pylibinfra реально задействованы: tgbotkit, httpclient, cachekit, natskit, logkit,
+httpkit (health-порт + webhook), clockkit (часы для лимитов), healthkit (пробы `/ready`).
+Не тянуть лишнее.>
 
 ## External runtime-deps
 <Внешние сервисы рантайма: Redis (обязателен), NATS (если notifications), продуктовые HTTP-бэкенды.

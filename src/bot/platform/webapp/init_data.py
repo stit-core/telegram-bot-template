@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from pydantic import SecretStr
 from pylibinfra.tgbotkit import InitDataError, validate_init_data
 
 
@@ -20,7 +21,9 @@ class WebAppUser:
     username: str | None = None
 
 
-def validate_webapp_user(init_data: str, bot_token: str, *, max_age: int = 300) -> WebAppUser:
+def validate_webapp_user(
+    init_data: str, bot_token: SecretStr | str, *, max_age: int = 300
+) -> WebAppUser:
     # demo-only: reference валидатор initData; нет живого вызывающего — wire или prune.
     fields = validate_init_data(init_data, bot_token, max_age=max_age)  # raise InitDataError
     raw_user = fields.get("user")

@@ -16,7 +16,7 @@ status: draft
 форку `<org>/strategy` (дефолт `../strategy` — sibling-чекаут). На каноническом шаблоне не задан.>
 
 ## Versioning
-<Схема версий (semver `vX.Y.Z`). Как версия и commit попадают в образ (`VERSION`/`GIT_SHA`
+<Схема версий (semver `vX.Y.Z`). Как версия и commit попадают в образ (`SERVICE_VERSION`/`GIT_COMMIT`
 build-arg) и в стартовый лог. Что логируется на старте (`"starting" service/version/commit`).>
 
 ## Image
@@ -27,7 +27,7 @@ build-arg) и в стартовый лог. Что логируется на с�
 <Что de-template родит из этого артефакта:
 - `[project] name`/`description` в `pyproject.toml`
 - README-шапка
-- `VERSION`/`GIT_SHA` в build/release
+- `SERVICE_VERSION`/`GIT_COMMIT` в build/release (build-arg → ENV образа → `AppConfig`)
 - лог `"starting" service/version/commit`>
 <NB: `project-slug`/`surface`/`strategy-path` из § Identity — не код-вывод de-template, а указатель,
 по которому `/dialog-deep-dive` и `/scaffold` находят дизайн диалогов в соседнем стратегии-репо.>

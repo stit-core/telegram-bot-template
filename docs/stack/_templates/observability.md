@@ -8,12 +8,14 @@ status: draft
 # Observability — логи
 
 ## Logging
-<Структурные JSON-логи в stdout через `pylibinfra.logkit` (`LOG_LEVEL`/`LOG_STDOUT`). Метрики/трейсы
-по OTLP шаблон не экспортирует. Trace-correlation (`X-Request-ID`) и PII-redact — из logkit.>
+<Структурные JSON-логи в stdout через `pylibinfra.logkit` (`LOG_LEVEL`/`LOG_FORMAT`/`LOG_SILENT`,
+redact — `LOG_REDACT_*`). Метрики/трейсы по OTLP шаблон не экспортирует (кит `telemetry` не
+подключён). Trace-correlation (`request_id`, `X-Request-ID` к бэкендам) и PII-redact — из logkit.>
 
 ## Auto-emitted (kit)
-<Что даёт logkit/tgbotkit само: структурные логи апдейтов, trace-id корреляция
-(`X-Request-ID=tg-<update_id>`), health. См. `docs/reference/observability.md`.>
+<Что даёт logkit/tgbotkit само: структурные логи апдейтов с ctx-полями `request_id`/`update_id`/
+`tg_user_id`/`chat_id`, `/health` + `/ready` по пробам `ExtensionProvider.probes`
+(`tgbotkit`, `tgbotkit/redis`, `natskit`). См. `docs/reference/observability.md`.>
 
 ## Business signals
 <Свои биз-логи (структурные поля: успех оплаты/доставки). Что считаем «успехом» и где эмитим
@@ -21,7 +23,8 @@ status: draft
 
 ## Generates
 <Что de-template родит:
-- `LogConfig` + `RedactConfig` в `config.py`
-- env: `LOG_*`
-- лог `"starting" service/version/commit`
+- `logkit.Config` + `logkit.OptionalRedactConfig` в `config.py` (`new_config()`/`new_redact_config()`)
+- `probes` → `healthkit.Probes` в `ExtensionProvider` (`app.py`)
+- env: `LOG_*`, `HTTP_ADDR`/`HTTP_READY_PROBE_TIMEOUT` (health-порт)
+- лог `"starting" service/version/commit` (`SERVICE_VERSION`/`GIT_COMMIT`)
 - точки биз-логов (указатель, scaffold по фичам)>

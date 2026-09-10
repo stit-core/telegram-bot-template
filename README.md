@@ -74,7 +74,7 @@ claude                 # → /init-service
   (отдельного worker-образа нет, бот stateless — state в Redis).
 - **Платформа** — [`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra):
   Bot/Dispatcher/RedisStorage, middleware, webhook/polling runner, error-handlers, структурные логи,
-  generic-механика i18n/notifications/payments/webapp.
+  health-пробы `/ready`, generic-механика i18n/notifications/payments/webapp.
 - **Дизайн флоу** — артефакты в соседнем стратегии-репо; маппинг в код —
   [`docs/reference/dialog-mapping.md`](docs/reference/dialog-mapping.md).
 - **Тесты** — unit, flow (`BotClient` + фейк порта), integration (testcontainers redis/nats),

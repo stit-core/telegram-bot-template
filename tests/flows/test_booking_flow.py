@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from aiogram.types import Message
 from aiogram_dialog.test_tools.keyboard import InlineButtonDataLocator, InlineButtonTextLocator
+from dishka import AsyncContainer
 from pylibinfra.testkit.bottest import BotClient, MockMessageManager
 from tests._fakes.backend import FakeApiClient
 from tests._fakes.harness import build_dp, make_container
@@ -20,7 +21,7 @@ from bot.features import booking, start
 pytestmark = pytest.mark.dialog
 
 
-def _client(backend: FakeApiClient) -> tuple[BotClient, MockMessageManager, object]:
+def _client(backend: FakeApiClient) -> tuple[BotClient, MockMessageManager, AsyncContainer]:
     mm = MockMessageManager()
     container = make_container(start.Provider(), booking.Provider(), backend=backend)
     dp = build_dp(container, mm, routers=[start.dialog, booking.dialog], commands=[start.cmd_spec])
@@ -66,7 +67,7 @@ async def test_wizard_with_delivery_asks_address_then_submits() -> None:
         await client.click(confirm, InlineButtonTextLocator("booking-submit"))
         assert ("POST", "/v1/bookings") in backend.calls
     finally:
-        await container.close()  # type: ignore[attr-defined]
+        await container.close()
 
 
 async def test_wizard_without_delivery_skips_address() -> None:
@@ -89,4 +90,4 @@ async def test_wizard_without_delivery_skips_address() -> None:
         await client.click(confirm, InlineButtonTextLocator("booking-submit"))
         assert ("POST", "/v1/bookings") in backend.calls
     finally:
-        await container.close()  # type: ignore[attr-defined]
+        await container.close()

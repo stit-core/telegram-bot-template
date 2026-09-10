@@ -3,12 +3,12 @@
 dialog on_click шлёт инвойс/подписочный линк; dispatcher-level (pre_checkout, successful_payment,
 refunded_payment, /refund) регистрируются через CommandBundle (__init__.py). pre_checkout —
 answer_pre_checkout (timeout-guard, fail-closed); successful_payment/refunded_payment —
-at-least-once через Charge/RefundGuard (commit после, release на сбое); /refund — refund_charge.
+at-least-once через Charge/RefundGuard из DI (резерв с токеном → выдача → commit; release на
+сбое); /refund — refund_charge.
 """
 
 from __future__ import annotations
 
-import redis.asyncio as aioredis
 from aiogram import Bot
 from aiogram.filters import CommandObject
 from aiogram.types import CallbackQuery, Message, PreCheckoutQuery
@@ -17,6 +17,7 @@ from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram import inject as inject_dispatcher
 from dishka.integrations.aiogram_dialog import inject as inject_dialog
+from pylibinfra.logkit import Logger
 from pylibinfra.tgbotkit import (
     ChargeGuard,
     RefundGuard,
@@ -93,13 +94,18 @@ async def on_subscribe(
 
 @inject_dispatcher
 async def on_pre_checkout(
-    query: PreCheckoutQuery, *, uc: FromDishka[PaymentsUsecase], bot: FromDishka[Bot]
+    query: PreCheckoutQuery,
+    *,
+    uc: FromDishka[PaymentsUsecase],
+    bot: FromDishka[Bot],
+    log: FromDishka[Logger],
 ) -> None:
     async def decide(q: PreCheckoutQuery) -> bool:
         # цену/валюту сверяем на бэкенде (uc.confirm), НЕ доверяя q.total_amount как истине
         return await uc.confirm(q.invoice_payload, q.total_amount, q.currency)
 
-    await answer_pre_checkout(bot, query, decide, deadline=9.0)
+    # log=: без него причина отказа гаснет вместе с исключением decide
+    await answer_pre_checkout(bot, query, decide, deadline=9.0, log=log)
 
 
 @inject_dispatcher
@@ -107,22 +113,25 @@ async def on_successful_payment(
     message: Message,
     *,
     uc: FromDishka[PaymentsUsecase],
-    client: FromDishka[aioredis.Redis],
+    guard: FromDishka[ChargeGuard],
+    log: FromDishka[Logger],
 ) -> None:
     sp = message.successful_payment
     if sp is None:
         return
     charge_id = sp.telegram_payment_charge_id
-    # at-least-once: платёж может прийти дважды → reserve до выдачи, commit после
-    guard = ChargeGuard(client)
-    if not await guard.reserve(charge_id):
+    # at-least-once: платёж может прийти дважды → резерв до выдачи, commit после
+    token = await guard.reserve(charge_id)
+    if token is None:
         return  # дубликат или выдача уже в процессе
     try:
         await uc.complete(sp.invoice_payload, charge_id)
     except Exception:
-        await guard.release(charge_id)  # сбой выдачи → ключ снят, повтор апдейта сможет выдать
+        await guard.release(charge_id, token)  # сбой выдачи → резерв снят: повтор апдейта выдаст
         raise
-    await guard.commit(charge_id)
+    if not await guard.commit(charge_id, token):
+        # резерв истёк до commit: выдачу мог повторить соседний воркер — виден только в логе
+        log.warn("payments.reservation_lost", stage="paid", charge_id=charge_id)
 
 
 @inject_dispatcher
@@ -130,22 +139,24 @@ async def on_refunded_payment(
     message: Message,
     *,
     uc: FromDishka[PaymentsUsecase],
-    client: FromDishka[aioredis.Redis],
+    guard: FromDishka[RefundGuard],
+    log: FromDishka[Logger],
 ) -> None:
     rp = message.refunded_payment
     if rp is None:
         return
     charge_id = rp.telegram_payment_charge_id
     # at-least-once (как successful_payment): откат выдачи ровно один раз → RefundGuard
-    guard = RefundGuard(client)
-    if not await guard.reserve(charge_id):
+    token = await guard.reserve(charge_id)
+    if token is None:
         return
     try:
         await uc.reverse(rp.invoice_payload, charge_id)
     except Exception:
-        await guard.release(charge_id)
+        await guard.release(charge_id, token)
         raise
-    await guard.commit(charge_id)
+    if not await guard.commit(charge_id, token):
+        log.warn("payments.reservation_lost", stage="refunded", charge_id=charge_id)
 
 
 @inject_dispatcher

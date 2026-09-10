@@ -25,7 +25,7 @@ model: sonnet
 ## Полезные точки опоры в этом репо
 
 - Анатомия фичи — `src/bot/features/profile/` (полный гексагон). Границы — `importlinter.toml`.
-- Composition root — `src/bot/app.py` + `src/bot/extensions.py`. StatesGroup — `src/bot/platform/dialogs/states.py`.
+- Composition root — `src/bot/app.py` (`ExtensionProvider` + `build_container`), конфиги — `src/bot/config.py`. StatesGroup — `src/bot/platform/dialogs/states.py`.
 - Реальный API инфры — `pylibinfra/tgbotkit` (источник истины; в `../pylibinfra/src/pylibinfra/`).
 - Доки kit'а по диалогам — `aiogram-dialog-docs/`.
 

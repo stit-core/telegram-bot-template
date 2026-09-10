@@ -2,12 +2,13 @@
 
 Хендлеры обёрнуты dishka @inject: зависимости резолвятся из request-контейнера
 (`dishka_container` для dispatcher-level, `manager.middleware_data` для dialog-level).
-Собираем APP-контейнер с фейками инфры (FakeBot/FakeRedis) и подменённым PaymentsUsecase.
+Собираем APP-контейнер с фейками инфры (FakeBot, MemoryRedis под гвардами) и подменённым
+PaymentsUsecase.
 
 Покрываем:
 - on_buy: callback без message (инвойс не шлём, но answer есть) и happy-path send_invoice;
 - on_pre_checkout: decide=True/False/исключение → answer_pre_checkout_query(ok=...) fail-closed;
-- on_successful_payment: sp=None ранний выход; reserve=False (дубликат); commit после выдачи;
+- on_successful_payment: sp=None ранний выход; чужой резерв (дубликат); commit после выдачи;
   release+raise при сбое complete.
 """
 
@@ -17,12 +18,12 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-import redis.asyncio as aioredis
 from aiogram import Bot
 from dishka import AsyncContainer, Provider, Scope, make_async_container, provide
 from pylibinfra.httpclient import UnavailableError
-from pylibinfra.logkit import nop
-from tests._fakes.redis import FakeRedis
+from pylibinfra.logkit import Logger, nop
+from pylibinfra.testkit.bottest import MemoryRedis
+from pylibinfra.tgbotkit import ChargeGuard, RefundGuard
 
 from bot.features.payments import errors, handlers
 from bot.features.payments.usecase import PaymentsUsecase
@@ -92,7 +93,7 @@ class _Deps(Provider):
     scope = Scope.APP
 
     def __init__(
-        self, gateway: _Gateway, bot: _FakeBot, redis: FakeRedis, role: str = "user"
+        self, gateway: _Gateway, bot: _FakeBot, redis: MemoryRedis, role: str = "user"
     ) -> None:
         super().__init__()
         self._gateway = gateway
@@ -109,8 +110,16 @@ class _Deps(Provider):
         return self._bot  # type: ignore[return-value]
 
     @provide
-    def redis(self) -> aioredis.Redis:
-        return self._redis  # type: ignore[return-value]
+    def charge_guard(self) -> ChargeGuard:
+        return ChargeGuard(self._redis)  # type: ignore[arg-type]
+
+    @provide
+    def refund_guard(self) -> RefundGuard:
+        return RefundGuard(self._redis)  # type: ignore[arg-type]
+
+    @provide
+    def log(self) -> Logger:
+        return nop()
 
     @provide
     def identity(self) -> BotIdentity:
@@ -118,7 +127,7 @@ class _Deps(Provider):
 
 
 def _container(
-    gateway: _Gateway, bot: _FakeBot, redis: FakeRedis, role: str = "user"
+    gateway: _Gateway, bot: _FakeBot, redis: MemoryRedis, role: str = "user"
 ) -> AsyncContainer:
     return make_async_container(_Deps(gateway, bot, redis, role))
 
@@ -142,7 +151,7 @@ class _Callback:
 
 async def test_on_buy_sends_invoice_and_answers() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_OFFER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, MemoryRedis())
     cb = _Callback(SimpleNamespace(chat=SimpleNamespace(id=555)))
     async with container() as rc:
         manager = SimpleNamespace(middleware_data={"dishka_container": rc})
@@ -155,7 +164,7 @@ async def test_on_buy_sends_invoice_and_answers() -> None:
 
 async def test_on_buy_without_message_skips_invoice_but_answers() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_OFFER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, MemoryRedis())
     cb = _Callback(message=None)  # инлайн-сообщение могло быть удалено
     async with container() as rc:
         manager = SimpleNamespace(middleware_data={"dishka_container": rc})
@@ -167,7 +176,7 @@ async def test_on_buy_without_message_skips_invoice_but_answers() -> None:
 
 async def _pre_checkout(gateway: _Gateway, *, amount: int, currency: str) -> list[tuple[str, bool]]:
     bot = _FakeBot()
-    container = _container(gateway, bot, FakeRedis())
+    container = _container(gateway, bot, MemoryRedis())
     query = SimpleNamespace(id="pq1", invoice_payload="o1", total_amount=amount, currency=currency)
     async with container() as rc:
         await handlers.on_pre_checkout(query, dishka_container=rc)  # type: ignore[call-arg, arg-type]
@@ -199,7 +208,7 @@ def _payment_message(sp: Any) -> Any:
     return SimpleNamespace(successful_payment=sp)
 
 
-async def _complete(gateway: _Gateway, message: Any, redis: FakeRedis) -> None:
+async def _complete(gateway: _Gateway, message: Any, redis: MemoryRedis) -> None:
     container = _container(gateway, _FakeBot(), redis)
     try:
         async with container() as rc:
@@ -211,23 +220,26 @@ async def _complete(gateway: _Gateway, message: Any, redis: FakeRedis) -> None:
 async def test_on_successful_payment_no_sp_returns() -> None:
     # message без successful_payment — ранний выход, выдачи нет
     gw = _Gateway(_OFFER)
-    await _complete(gw, _payment_message(None), FakeRedis())
+    await _complete(gw, _payment_message(None), MemoryRedis())
     assert gw.fulfilled == []
 
 
 async def test_on_successful_payment_fulfills_and_commits() -> None:
     gw = _Gateway(_OFFER)
-    redis = FakeRedis()
+    redis = MemoryRedis()
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
     await _complete(gw, _payment_message(sp), redis)
     assert gw.fulfilled == [("o1", "charge-1")]
-    assert redis.store["tg:charge:charge-1"] == b"1"  # commit оставил ключ
+    # commit зафиксировал ключ: повторный апдейт того же платежа — дубликат
+    assert "tg:charge:charge-1" in redis.store
+    assert await ChargeGuard(redis).reserve("charge-1") is None  # type: ignore[arg-type]
 
 
 async def test_on_successful_payment_duplicate_skips_fulfill() -> None:
     gw = _Gateway(_OFFER)
-    redis = FakeRedis()
-    redis.store["tg:charge:charge-1"] = b"1"  # ключ уже занят → reserve вернёт дубликат
+    redis = MemoryRedis()
+    # соседний воркер уже держит резерв этого платежа → reserve отдаёт None
+    assert await ChargeGuard(redis).reserve("charge-1") is not None  # type: ignore[arg-type]
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
     await _complete(gw, _payment_message(sp), redis)
     assert gw.fulfilled == []  # at-least-once: повтор апдейта не выдаёт второй раз
@@ -235,17 +247,17 @@ async def test_on_successful_payment_duplicate_skips_fulfill() -> None:
 
 async def test_on_successful_payment_releases_on_failure() -> None:
     gw = _Gateway(_OFFER, fulfill_error=UnavailableError("backend down"))
-    redis = FakeRedis()
+    redis = MemoryRedis()
     sp = SimpleNamespace(telegram_payment_charge_id="charge-1", invoice_payload="o1")
     with pytest.raises(errors.PaymentError):
         await _complete(gw, _payment_message(sp), redis)
-    # сбой выдачи → ключ снят, чтобы повтор апдейта смог выдать
+    # сбой выдачи → резерв снят, чтобы повтор апдейта смог выдать
     assert "tg:charge:charge-1" not in redis.store
 
 
 async def test_on_subscribe_builds_link_and_sends() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_OFFER), bot, FakeRedis())
+    container = _container(_Gateway(_OFFER), bot, MemoryRedis())
     msg = _Message()
     cb = _Callback(msg)
     async with container() as rc:
@@ -263,20 +275,20 @@ def _refunded_message(rp: Any) -> Any:
 
 async def test_on_refunded_payment_reverses_and_commits() -> None:
     gw = _Gateway(_OFFER)
-    redis = FakeRedis()
+    redis = MemoryRedis()
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
     container = _container(gw, _FakeBot(), redis)
     async with container() as rc:
         await handlers.on_refunded_payment(_refunded_message(rp), dishka_container=rc)  # type: ignore[call-arg]
     await container.close()
     assert gw.revoked == [("o1", "ch-1")]
-    assert redis.store["tg:refund:ch-1"] == b"1"
+    assert "tg:refund:ch-1" in redis.store
 
 
 async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
     gw = _Gateway(_OFFER)
-    redis = FakeRedis()
-    redis.store["tg:refund:ch-1"] = b"1"  # откат уже выполнен/в процессе
+    redis = MemoryRedis()
+    assert await RefundGuard(redis).reserve("ch-1") is not None  # type: ignore[arg-type]
     rp = SimpleNamespace(telegram_payment_charge_id="ch-1", invoice_payload="o1")
     container = _container(gw, _FakeBot(), redis)
     async with container() as rc:
@@ -288,7 +300,7 @@ async def test_on_refunded_payment_duplicate_skips_reverse() -> None:
 async def test_on_refund_command_admin_refunds_payer() -> None:
     bot = _FakeBot()
     gw = _Gateway(_OFFER, payer=42)
-    container = _container(gw, bot, FakeRedis(), role="admin")
+    container = _container(gw, bot, MemoryRedis(), role="admin")
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
     async with container() as rc:
@@ -299,7 +311,7 @@ async def test_on_refund_command_admin_refunds_payer() -> None:
 
 async def test_on_refund_command_denies_non_admin() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_OFFER, payer=42), bot, FakeRedis(), role="user")
+    container = _container(_Gateway(_OFFER, payer=42), bot, MemoryRedis(), role="user")
     msg = _Message()
     cmd = SimpleNamespace(args="ch-1")
     async with container() as rc:
@@ -311,7 +323,7 @@ async def test_on_refund_command_denies_non_admin() -> None:
 
 async def test_on_refund_command_unknown_payer() -> None:
     bot = _FakeBot()
-    container = _container(_Gateway(_OFFER, payer=None), bot, FakeRedis(), role="admin")
+    container = _container(_Gateway(_OFFER, payer=None), bot, MemoryRedis(), role="admin")
     msg = _Message()
     cmd = SimpleNamespace(args="ghost")
     async with container() as rc:

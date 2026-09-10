@@ -30,7 +30,7 @@ Module-docstring — одна-две строки про роль файла; н
 
 - Инвариант: `# /start ВСЕГДА RESET_STACK: иначе стек копится до 100 → DialogStackOverflow.`
 - Workaround: `# router._parent_router = None — детач module-level dialog между тестами.`
-- Сюрприз: `# LogkitProvider ПОСЛЕ BotProvider (его дефолт nop иначе победит).`
+- Сюрприз: `# ExtensionProvider ПОСЛЕ HttpProvider: его пустой дефолт Probes иначе победит.`
 - Хитрая константа/дедлайн: `# deadline=9.0 < 10с дедлайна Telegram на pre_checkout (fail-closed).`
 
 ## Чек

@@ -57,7 +57,7 @@ make release VERSION=vX.Y.Z
 2. **confirm-промпт** (нет TTY/EOF → отмена, accidental release невозможен);
 3. annotated tag, если на HEAD ещё нет (иначе использует существующий; конфликт версий → fail);
 4. preflight: ветка=main / clean / annotated semver на HEAD / docker-auth — fail-fast;
-5. `docker buildx --platform linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный `pylibinfra[tgbotkit]` через `--mount=type=ssh`), `VERSION`/`GIT_SHA` зашиты в образ (версия/коммит билда);
+5. `docker buildx --platform linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный `pylibinfra[tgbotkit]` через build-secret `git_token`), `SERVICE_VERSION`/`GIT_COMMIT` зашиты в образ (версия/коммит билда → лог `starting`);
 6. печатает агрегированный **INFRA-HANDOFF** и STOP.
 
 ---
@@ -77,7 +77,7 @@ make release VERSION=vX.Y.Z
 
 ### Verify (в infra-репо, не здесь)
 
-`make ps` → bot `healthy` (httpkit `/health`); в логах на старте `"starting" service=<bot> version=<v> commit=<sha>`.
+`make ps` → bot `healthy` (httpkit `/health`; `/ready` — пробы Bot API/Redis/NATS); в логах на старте `"starting" service=bot version=<v> commit=<sha>`.
 
 ## Откат
 

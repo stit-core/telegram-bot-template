@@ -16,8 +16,7 @@ class CacheOnboardingStore:
         self._cache = cache
 
     async def is_onboarded(self, tg_id: int) -> bool:
-        _, found = await self._cache.get(onboard_key(tg_id))
-        return found
+        return await self._cache.get(onboard_key(tg_id)) is not None
 
     async def mark_onboarded(self, tg_id: int, chat_id: int) -> None:
         await self._cache.set(onboard_key(tg_id), b"1", LINK_TTL)

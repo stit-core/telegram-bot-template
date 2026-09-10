@@ -30,13 +30,14 @@
 ```python
 from typing import Any
 from pylibinfra.cachekit import Cache
+from pylibinfra.logkit import Logger
 from pylibinfra.tgbotkit import Delivery, DeliveryDedup
 from bot.platform.links import chat_link_key
 
 
 class SubExpiringDeliverer:
-    def __init__(self, cache: Cache, dedup: DeliveryDedup) -> None:
-        self._cache, self._dedup = cache, dedup
+    def __init__(self, cache: Cache, dedup: DeliveryDedup, log: Logger) -> None:
+        self._cache, self._dedup, self._log = cache, dedup, log
 
     async def on_expiring(self, payload: Any, delivery: Delivery) -> None:
         if not isinstance(payload, dict):
@@ -45,16 +46,27 @@ class SubExpiringDeliverer:
         user_ref = str(payload.get("user_ref", ""))
         if not event_id or not user_ref:
             return
-        if await self._dedup.seen(f"sub-expiring:{event_id}"):  # at-least-once дедуп
-            return
         chat_id = await self._lookup_chat(user_ref)
         if chat_id is None:
             return  # нет link — тихо пропускаем
-        await delivery.send_message(chat_id=chat_id, text="⏳ Подписка скоро истекёт.")
+        key = f"sub-expiring:{event_id}"
+        token = await self._dedup.reserve(key)  # at-least-once: None = дубль или уже в работе
+        if token is None:
+            return
+        try:
+            await delivery.send_message(
+                chat_id=chat_id, text=delivery.localize(None, "sub-expiring")
+            )
+        except Exception:
+            await self._dedup.release(key, token)  # сбой → проброс → nak → redelivery повторит
+            raise
+        if not await self._dedup.commit(key, token):
+            # резерв истёк на медленной доставке и ушёл соседу — возможный дубль виден в логе
+            self._log.warn("notifications.reservation_lost", key=key)
 
     async def _lookup_chat(self, user_ref: str) -> int | None:
-        raw, found = await self._cache.get(chat_link_key(user_ref))
-        if not found or raw is None:
+        raw = await self._cache.get(chat_link_key(user_ref))
+        if raw is None:
             return None
         try:
             return int(raw.decode())
@@ -69,12 +81,12 @@ class SubExpiringDeliverer:
 В `features/notifications/__init__.py` (`build_router`) — добавь подписку:
 
 ```python
-def build_router(cache: Cache, client: aioredis.Redis) -> NotificationRouter:
+def build_router(cache: Cache, client: aioredis.Redis, log: Logger) -> NotificationRouter:
     router = NotificationRouter()
-    deliverer = OrderDeliverer(cache, DeliveryDedup(client))
+    deliverer = OrderDeliverer(cache, DeliveryDedup(client), LocalePrefStore(cache), log)
     router.on("orders", "orders.paid", "bot-orders-paid", deliverer.on_order_paid)
     # ↓ новая подписка
-    sub = SubExpiringDeliverer(cache, DeliveryDedup(client))
+    sub = SubExpiringDeliverer(cache, DeliveryDedup(client), log)
     router.on("subscriptions", "subscription.expiring", "bot-sub-expiring", sub.on_expiring)
     return router
 ```
@@ -87,7 +99,7 @@ def build_router(cache: Cache, client: aioredis.Redis) -> NotificationRouter:
 
 ## 5. Тесты + верификация
 
-- unit-тест deliverer (образец `tests/unit/test_notifications.py`): фейк `Cache` + фейк `Delivery` (`tests/_fakes/delivery.py`) + фейк dedup. Проверь: дедуп срабатывает (второй вызов — no-op), нет link → no send, happy path → один send с нужным текстом/chat_id.
+- unit-тест deliverer (образец `tests/unit/test_notifications.py`): `cachekit.MemoryCache` + фейк `Delivery` (`tests/_fakes/delivery.py`) + `DeliveryDedup` над `testkit.bottest.MemoryRedis` (TTL двигает `clockkit.Tickable`). Проверь: дедуп срабатывает (второй вызов — no-op), нет link → no send, happy path → один send с нужным текстом/chat_id, сбой → проброс + `release` → повтор доставляет, истёкший резерв → warn.
 - идемпотентность (at-least-once): два одинаковых payload → одна доставка.
 - `make check`. Новый/изменённый subject — это инфра-поверхность → `infra-handoff` (cross-service NATS-subject).
 
@@ -96,7 +108,7 @@ def build_router(cache: Cache, client: aioredis.Redis) -> NotificationRouter:
 ## Anti-patterns
 
 - ❌ `bot.send_message` напрямую вместо `Delivery` — потеряешь корреляцию, наткнёшься на throttle, фон вне middleware.
-- ❌ Без дедупа на at-least-once subject — пользователь получит дубли.
+- ❌ Без дедупа на at-least-once subject — пользователь получит дубли; `commit`/`release` без токена резерва — снимешь чужой резерв.
 - ❌ Тяжёлая логика в deliverer (генерация отчёта) — он должен быть быстрым; вынеси в usecase/джобу.
 - ❌ Резолв адресата мимо `link:chat:*` — рассинхрон с тем, что пишет онбординг → тихие пропуски.
 - ❌ Новая механика доставки (свой ack/dedup-движок) в шаблоне — это PR в `tgbotkit`.

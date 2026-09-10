@@ -2,8 +2,9 @@
 middleware/i18n/commands/routers/error-handlers), setup_dialogs не ловит коллизий StatesGroup,
 все pkg-API и usecase'ы фич резолвятся (fail-fast: незаполненный бэкенд падает тут, не на юзере).
 
-Офлайн: NATS/Telegram не дёргаем (BotRunner не резолвим — он бы поднял соединения). redis —
-ленивый (не подключается на сборке Dispatcher).
+Офлайн, граф прода без подмен провайдеров: Bot строится на стаб-токене (Telegram не дёргаем),
+Redis-клиент отдаётся без PING (REDIS_PING_ON_START=false — ленивое соединение), NATS/HTTP-сервер
+не резолвятся (только через BotRunner/healthkit.Probes — их здесь не берём).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import pytest
 from aiogram import Dispatcher
 from aiogram_dialog import setup_dialogs
-from pylibinfra.httpclient import ApiClients
+from pylibinfra.httpclient import ApiClients, ConfigError
 
 from bot import app
 from bot.features import booking, lang, payments, profile, start
@@ -26,6 +27,13 @@ from bot.pkg.http_client.internal.payments import PaymentsAPI
 from bot.pkg.http_client.internal.profile import ProfileAPI
 
 pytestmark = pytest.mark.dialog
+
+
+@pytest.fixture(autouse=True)
+def _offline_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BOT_TOKEN", "123456:AAstub-token-for-tests")
+    monkeypatch.setenv("REDIS_PING_ON_START", "false")
+    monkeypatch.setenv("LOG_SILENT", "true")
 
 
 async def test_container_assembles_and_dialogs_collision_free() -> None:
@@ -64,7 +72,18 @@ async def test_missing_backend_base_url_fails_on_startup(monkeypatch: pytest.Mon
     monkeypatch.delenv("HTTPCLIENT_BASE_URL", raising=False)
     container = app.build_container()
     try:
-        with pytest.raises(Exception, match="base_url"):
+        with pytest.raises(ConfigError, match="HTTPCLIENT_BASE_URL"):
             await container.get(ApiClients)
+    finally:
+        await container.close()
+
+
+async def test_missing_bot_token_fails_on_startup(monkeypatch: pytest.MonkeyPatch) -> None:
+    # BOT_TOKEN обязателен: без него Dispatcher (и Bot) не собираются — старт, не первый апдейт
+    monkeypatch.delenv("BOT_TOKEN", raising=False)
+    container = app.build_container()
+    try:
+        with pytest.raises(ValueError, match="BOT_TOKEN"):
+            await container.get(Dispatcher)
     finally:
         await container.close()

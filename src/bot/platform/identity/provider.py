@@ -32,11 +32,9 @@ class IdentityProvider(Provider):
             return BotIdentity(tg_id=0, backend_user_id="", role="user")
         tg_id = int(user.id)
         backend_user_id = await self._resolve_backend_id(cache, tg_id)
-        role = "admin" if tg_id in app.admin_id_set() else "user"
+        role = "admin" if tg_id in app.admin_ids else "user"
         return BotIdentity(tg_id=tg_id, backend_user_id=backend_user_id, role=role)
 
     async def _resolve_backend_id(self, cache: Cache, tg_id: int) -> str:
-        raw, found = await cache.get(backend_link_key(tg_id))
-        if found and raw is not None:
-            return raw.decode()
-        return str(tg_id)
+        raw = await cache.get(backend_link_key(tg_id))
+        return raw.decode() if raw is not None else str(tg_id)

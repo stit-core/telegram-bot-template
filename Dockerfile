@@ -36,12 +36,14 @@ ENV PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 USER app
 
-# provenance (версия/коммит) — прокидываются на build в OCI-лейблы образа.
+# provenance (версия/коммит) — прокидываются на build в OCI-лейблы образа и в ENV:
+# их читает AppConfig и пишет в лог "starting" (verify-шаг релиза).
 ARG SERVICE_VERSION=dev
 ARG GIT_COMMIT=unknown
 LABEL org.opencontainers.image.version=${SERVICE_VERSION} \
       org.opencontainers.image.revision=${GIT_COMMIT}
-ENV GIT_COMMIT=${GIT_COMMIT} \
+ENV SERVICE_VERSION=${SERVICE_VERSION} \
+    GIT_COMMIT=${GIT_COMMIT} \
     PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["python", "-m", "bot"]

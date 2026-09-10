@@ -9,15 +9,14 @@ PURE (ключи + TTL-константа, без I/O).
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 BACKEND_LINK_PREFIX = "link:tg:"
 ONBOARD_PREFIX = "onboard:tg:"
 CHAT_LINK_PREFIX = "link:chat:"
 
-# TTL identity-link записей: ограничивает рост redis от заброшенных юзеров (onboard и
-# chat_link пишутся и протухают вместе → возврат после простоя ре-онбордит; тюнь под продукт).
-LINK_TTL = timedelta(days=180)
+# TTL identity-link записей в секундах (cachekit считает TTL float-секундами): ограничивает
+# рост redis от заброшенных юзеров (onboard и chat_link пишутся и протухают вместе →
+# возврат после простоя ре-онбордит; тюнь под продукт).
+LINK_TTL = 180 * 24 * 3600.0
 
 
 def backend_link_key(tg_id: int) -> str:

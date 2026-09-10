@@ -9,7 +9,7 @@ authors = [{ name = "stit-core" }]
 
 # Директива «вся инфра в pylibinfra»: единственная рантайм-зависимость — pylibinfra
 # с extra [tgbotkit] (tgbotkit + aiogram + aiogram-dialog + fluent.runtime). Остальная
-# инфра (dishka/redis/httpx/otel/fastapi/structlog/nats) приезжает транзитивом. Ноль
+# инфра (dishka/redis/httpx/otel/fastapi/nats) приезжает транзитивом. Ноль
 # прямых инфра-пинов. Конкретный источник/ревизия — в [tool.uv.sources] ниже.
 dependencies = [
     "pylibinfra[tgbotkit]",
@@ -29,12 +29,13 @@ dev = [
 
 # Приватный pylibinfra резолвится по git-ref в gitea — часть контракта форка: бот
 # пинится на релиз-тег инфры, как go-сервис на go.mod-версию.
-# ПИН: v0.6.0 — httpclient со строгим контрактом (model=-декод в wire-модели,
-# таксономия typed-ошибок, ретраи мутаций только с Idempotency-Key, BackendConfig
-# с обязательным base_url) поверх полного tgbotkit-стека (изоляция событий диалогов,
-# MarkdownV2-хелперы, plain-фолбэк доставки, natskit dedup/DLQ).
+# ПИН: v1.0.0 — первый стабильный мажор (паритет с golibinfra v1.1.0): fail-fast конфиги
+# (`<kit>.new_config()` → `<kit>.ConfigError`, ENV только по alias'ам, SecretStr у секретов),
+# именованные пробы healthkit (`/ready` собирает консьюмер), `BotProvider` поверх
+# `clockkit`/`httpkit.Server(autostart=False)`, токенные резервы `DeliveryDedup`/`ChargeGuard`,
+# `httpclient.ApiClient` с таксономией typed-ошибок и гейтом ретраев мутаций.
 [tool.uv.sources]
-pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v0.6.0" }
+pylibinfra = { git = "https://git.stit.tech/stit-core/pylibinfra.git", rev = "v1.0.0" }
 
 [build-system]
 requires = ["hatchling"]
@@ -104,7 +105,7 @@ known-first-party = ["bot"]
 # «Одна дверь к бэкенду»: pylibinfra.httpclient импортится только фасадом
 # bot.pkg.http_client (+ composition root: app.py/config.py и тесты — per-file-ignores).
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"logging".msg = "use pylibinfra.logkit.Logger (structlog + trace-id), not stdlib logging"
+"logging".msg = "use pylibinfra.logkit.Logger (request-id/trace-id, redact), not stdlib logging"
 "pylibinfra.httpclient".msg = "import via bot.pkg.http_client (единая дверь: клиенты/errors/wire)"
 
 # ── mypy: строгая типизация ───────────────────────────────────────────────────
@@ -150,8 +151,6 @@ markers = [
 ]
 addopts = "--strict-markers --import-mode=importlib"
 filterwarnings = [
-    # purgatory (circuit breaker из pylibinfra.httpclient) тянет pkg_resources — внешнее, не наша забота
-    "ignore:pkg_resources is deprecated:UserWarning",
     # testcontainers (pylibinfra.testkit) — внешние deprecation'ы их декораторов/импорт-путей
     "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning",
     "ignore:The wait_for_logs function with string or callable predicates is deprecated:DeprecationWarning",

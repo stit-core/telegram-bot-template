@@ -12,8 +12,9 @@ status: draft
 бэкенд). Без них бот не поднимется.>
 
 ## Optional env
-<С дефолтами: `BOT_MODE` (polling/webhook) + `WEBHOOK_*`, `NATS_URL` + `NATS_JS_*`, `LOG_*`,
-`APP_ADMIN_IDS`, `BOT_I18N_*`, `BOT_STATE_TTL`, `HTTP_*` (health). Источник дефолтов — kit-конфиги.>
+<С дефолтами: `BOT_MODE` (polling/webhook) + `BOT_WEBHOOK_*`, `NATS_URL` + `NATS_JS_*`, `LOG_LEVEL`/
+`LOG_FORMAT`/`LOG_SILENT`/`LOG_REDACT_*`, `APP_ADMIN_IDS`, `BOT_I18N_*`, `BOT_STATE_TTL`, `HTTP_ADDR`
+(health-порт). Источник дефолтов — kit-конфиги; заданная пустая переменная = дефолт.>
 
 ## Secrets
 <Что секрет (`BOT_TOKEN`, токены бэкендов). На проде секреты приходят через env (деплой-репо
@@ -21,10 +22,11 @@ status: draft
 
 ## *Config inventory
 <Какие `*Config` собирает `AppConfigProvider` (асимметрия dishka — kit'ы не provide'ят свой Config):
-logkit/cachekit/httpclient/natskit/tgbotkit + `AppConfig`. Что валидируется при старте
-(dishka валидирует DI-граф жадно).>
+logkit (+ `OptionalRedactConfig`)/cachekit/httpkit/httpclient (`BackendsConfig`)/natskit/tgbotkit +
+`AppConfig` — все через `<kit>.new_config()`: невалидный ENV валит старт `<kit>.ConfigError`
+(dishka валидирует DI-граф жадно, значения — при первом резолве).>
 
 ## Generates
 <Что de-template родит:
 - `.env.example` (required+optional с дефолтами, секреты — только имена)
-- `config.py`: `AppConfig` + `AppConfigProvider` (все `*Config`), `BackendsConfig`, i18n-каталоги>
+- `config.py`: `AppConfig` + `AppConfigProvider` (все `*Config` через `new_config()`), `BackendsConfig`, i18n-каталог>

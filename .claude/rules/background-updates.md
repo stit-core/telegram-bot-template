@@ -20,11 +20,15 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
   throttle. **Локаль фон НЕ резолвит автоматически** (нет I18nMiddleware): `deliver_*` берёт её сам
   (`LocalePrefStore.get(user_id)`) и рендерит ключ через `Delivery.localize(locale, key, args)`.
   Сырой `BgManager` мимо `Delivery` — нет.
-- **Идемпотентность обязательна** (JetStream durable = at-least-once): `reserve(<event-key>)` ДО
-  отправки → `commit` после успеха → `release` на сбое. Ключ стабильный по событию
+- **Идемпотентность обязательна** (JetStream durable = at-least-once): `token = await
+  dedup.reserve(<event-key>)` ДО отправки (`None` — дубль или доставка уже идёт у соседа → выход)
+  → `commit(key, token)` после успеха → `release(key, token)` на сбое. `commit` вернул `False` —
+  резерв истёк на медленной доставке и ушёл соседнему воркеру: запиши warn
+  (`notifications.reservation_lost`), не глотай. Ключ стабильный по событию
   (`order-paid:<order_id>`), не по времени. Сбой доставки **пробрасывай** (не глотать) — `JsBus`
-  сделает `nak`, а снятая `release`-резервация даст redelivery повторить. «Вряд ли задвоится» — не
-  аргумент. (Тот же `reserve/commit/release` у `ChargeGuard` для successful_payment.)
+  сделает `nak`, а снятый `release` резерв даст redelivery повторить. «Вряд ли задвоится» — не
+  аргумент. (Тот же токенный `reserve/commit/release` у `ChargeGuard`/`RefundGuard` для
+  successful/refunded_payment.)
 - **`deliver_*` — быстрый**: дедуп → резолв `chat_id` → резолв локали → `localize` → отправка.
   Тяжёлое (батч, рендер) — в usecase/job, не в обработчике доставки.
 - **`chat_id` резолвится по link tg→chat** (его пишет онбординг, напр. `start.mark_onboarded`);
@@ -33,14 +37,15 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
   `router.on(stream, subject, durable, handler)`); механика подписки/ack/`drain` на shutdown —
   в kit, не дублировать.
 - `notifications` — не диалог-гексагон (вне трёх import-linter-контрактов); это NATS-router +
-  `deliver_*`. Фасад отдаёт `build_router(cache, redis)` в `NotifierBundle` (через
-  `ExtensionProvider`, т.к. нужны `cache`+`redis` из контейнера).
+  `deliver_*`. Фасад отдаёт `build_router(cache, redis, log)` в `NotifierBundle` (через
+  `ExtensionProvider`, т.к. нужны `cache`+`redis`+`log` из контейнера).
 
 ## Чек
 
-- Тест доставки мокает `Delivery` (фейк `tests/_fakes/delivery.py`) + дедуп; проверяет «второе
-  событие не доставлено», «нет link → не отправлено» и «сбой доставки → проброс + `release` →
-  повтор доставляет» (фейк умеет инъецировать сбой; rule `tests-pipeline`).
+- Тест доставки мокает `Delivery` (фейк `tests/_fakes/delivery.py`), Redis/кэш — `MemoryRedis`/
+  `MemoryCache` lib'ы; проверяет «второе событие не доставлено», «нет link → не отправлено»,
+  «сбой доставки → проброс + `release` → повтор доставляет» и «истёкший резерв → warn» (фейк
+  умеет инъецировать сбой, `Tickable` двигает TTL; rule `tests-pipeline`).
 - Новый/изменённый NATS-subject (контракт с бэкендом) → INFRA-HANDOFF (rule `infra-impact`).
 - Нужна новая фоновая механика (новый вид runner'а, middleware на фон) — PR в `tgbotkit`
   (rule `tgbotkit-boundary`), не правка шаблона.

@@ -63,7 +63,7 @@ description: Развернуть форк telegram-bot-template в самост
 
 ### A.3 `.env.example`
 
-Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `*_BASE_URL`/`HTTPCLIENT_BACKENDS` при нескольких бэкендах), `APP_ADMIN_IDS`, `BOT_I18N_*`. Секреты — только имена ключей (значения не коммить; rule `infra-impact`).
+Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `HTTPCLIENT_BACKENDS` при нескольких бэкендах), `APP_ADMIN_IDS`, `BOT_I18N_*`, `LOG_*`, `HTTP_ADDR` (health-порт). Секреты — только имена ключей (значения не коммить; rule `infra-impact`).
 
 ### A.4 Strip шаблонной меты
 

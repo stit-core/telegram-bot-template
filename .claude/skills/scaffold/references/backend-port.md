@@ -193,7 +193,7 @@ Flow-тесты не трогаются: harness (`tests/_fakes/harness.py`) о�
 
 ## C. Несколько именованных бэкендов
 
-Бот ходит в **несколько** независимых API (core + CRM/LLM/биллинг). Реестр — kit: `BackendsConfig.backends: dict[имя, Config]` → `ApiClientsProvider` (уже в `app.py`) → `ApiClients.get(имя)`. Дефолтное имя breaker'а = имя бэкенда → per-API метрики `http_client_breaker_*{name="crm"}`. dishka различает клиентов по **классам областей API** (`CrmAPI` vs `ProfileAPI`) — никаких маркер-обёрток не нужно.
+Бот ходит в **несколько** независимых API (core + CRM/LLM/биллинг). Реестр — kit: `BackendsConfig.backends: dict[имя, BackendConfig]` → `ApiClientsProvider` (уже в `app.py`) → `ApiClients.get(имя)`. У каждого бэкенда свой клиент со своей политикой (таймаут/ретраи/цепь); цепь и метрики `http_client_*` kit ведёт на каждый upstream-хост (label `host`). dishka различает клиентов по **классам областей API** (`CrmAPI` vs `ProfileAPI`) — никаких маркер-обёрток не нужно.
 
 1. **Модуль клиента** — §A (`internal/crm.py` или `external/crm.py`).
 2. **Имя-константа + `@provide`** — `pkg/http_client/provider.py`:
@@ -207,23 +207,24 @@ def crm(self, clients: ApiClients) -> CrmAPI:
     return CrmAPI(clients.get(CRM_BACKEND))
 ```
 
-3. **Декларация в `BackendsConfig`** — `config.py` (`AppConfigProvider.backends`); каждый бэкенд — свой `BackendConfig`, `base_url` **обязателен** (пустой валит старт fail-fast; глобальные `HTTPCLIENT_*` в декларацию не протекают):
+3. **Декларация в `BackendsConfig`** — `config.py` (`AppConfigProvider.backends`); каждый бэкенд — свой `BackendConfig`, `base_url` **обязателен** (пустой валит старт fail-fast; глобальные `HTTPCLIENT_*` в декларацию не протекают). Провайдер уже объединяет `HTTPCLIENT_BACKENDS` (JSON из ENV) с «core» из кода — программная запись добавляется рядом:
 
 ```python
 @provide
-def backends(self, http: HttpConfig) -> BackendsConfig:
-    return BackendsConfig(
-        backends={
-            CORE_BACKEND: BackendConfig(base_url=http.base_url, timeout=http.timeout),
-            CRM_BACKEND: BackendConfig(
-                base_url=os.environ["CRM_BASE_URL"],
-                headers={"Authorization": f"Bearer {os.environ['CRM_TOKEN']}"},
-            ),
-        }
-    )
+def backends(self) -> httpclient.BackendsConfig:
+    declared = httpclient.new_backends_config()  # HTTPCLIENT_BACKENDS (JSON), fail-fast
+    backends = dict(declared.backends)
+    if CORE_BACKEND not in backends:
+        backends[CORE_BACKEND] = _core_backend()
+    if CRM_BACKEND not in backends:  # запись из ENV перекрывает код (deploy-override)
+        backends[CRM_BACKEND] = httpclient.BackendConfig(
+            base_url=os.environ["CRM_BASE_URL"],
+            headers={"Authorization": f"Bearer {os.environ['CRM_TOKEN']}"},
+        )
+    return declared.model_copy(update={"backends": backends})
 ```
 
-Альтернатива программной записи — env-JSON целиком: `HTTPCLIENT_BACKENDS='{"core": {"base_url": "..."}, "crm": {"base_url": "..."}}'` (тогда `backends()` возвращает `BackendsConfig()`); выбор источника — решение стека (`docs/stack/backends.md`). Новый бэкенд добавь в fail-fast composition-тест (`tests/flows/test_composition.py`).
+Альтернатива программной записи — env-JSON целиком: `HTTPCLIENT_BACKENDS='{"crm": {"base_url": "...", "headers": {"Authorization": "Bearer ..."}}}'` (тогда в `backends()` ничего не добавляется); выбор источника — решение стека (`docs/stack/backends.md`). Новый бэкенд добавь в fail-fast composition-тест (`tests/flows/test_composition.py`).
 
 > Новый `*_BASE_URL` env — инфра-поверхность: оформи INFRA-HANDOFF (rule `infra-impact`).
 

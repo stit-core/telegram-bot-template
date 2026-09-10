@@ -16,12 +16,13 @@ status: draft
 NATS-подписчики (notifications), периодические jobs. Всё через точки расширения `ExtensionProvider`.>
 
 ## Health & lifecycle
-<Health-probe (httpkit `/health`; в polling биндится health-порт `HTTP_*`). Graceful shutdown —
-в kit'е (`container.close()` → закрытие ресурсов). Что проверяет infra (`make ps` → healthy).>
+<Health-порт `HTTP_ADDR` занимает `BotRunner` (`HttpProvider(autostart=False)`) и в polling, и в
+webhook: `/health` + `/ready` (пробы Bot API/Redis/NATS из `ExtensionProvider.probes`). Graceful
+shutdown — в kit'е (дренаж подписок → `container.close()`). Что проверяет infra (`make ps` → healthy).>
 
 ## Generates
 <Что de-template родит:
-- `app.py` `run()` (резолв `BotRunner` → run)
-- `BotConfig` mode/webhook в `config.py`
-- env: `BOT_MODE`, `WEBHOOK_*` (если webhook), `HTTP_*` (health-порт в polling)
-- health-wiring (kit)>
+- `app.py` `run()` (лог `starting` → резолв `BotRunner` → run)
+- `tgbotkit.Config` (`new_config()` + i18n-каталог) и `httpkit.Config` в `config.py`
+- `HttpProvider(autostart=False)`/`ClockProvider()` в `build_container()`
+- env: `BOT_MODE`, `BOT_WEBHOOK_*` (если webhook), `HTTP_ADDR` (health-порт)>

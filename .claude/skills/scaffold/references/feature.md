@@ -105,6 +105,12 @@ class ReferralError(FeatureError): ...
 
 
 class ReferralNotFound(ReferralError): ...
+
+
+class ReferralForbidden(ReferralError): ...
+
+
+class ReferralUnavailable(ReferralError): ...
 ```
 
 ```python
@@ -129,11 +135,12 @@ class ReferralGateway(Protocol):
 ## 5. usecase / views
 
 ```python
-# usecase.py — порты + policy (+ Logger). Anti-corruption: typed-ошибки → sentinel'ы ЗДЕСЬ.
-from pylibinfra.httpclient import NotFoundError, UnavailableError
+# usecase.py — порты + policy (+ Logger). Anti-corruption: typed-ошибки → sentinel'ы ЗДЕСЬ,
+# канон «специфичные + catch-all ApiError» (401/422/429/Contract не протекают в recovery).
 from pylibinfra.logkit import Logger
 from bot.features.referral import errors, policy
 from bot.features.referral.ports import ReferralGateway
+from bot.pkg.http_client.errors import ApiError, NotFoundError
 from bot.pkg.http_client.internal.referral import Referral
 from bot.platform.identity import BotIdentity
 
@@ -145,13 +152,16 @@ class ReferralUsecase:
     async def view(self, identity: BotIdentity) -> Referral:
         decision = policy.can_invite(identity.role)
         if not decision.allowed:
-            raise errors.ReferralError(decision.reason)
+            raise errors.ReferralForbidden(decision.reason)
         try:
             return await self._gateway.get_referral(identity.backend_user_id)
         except NotFoundError as exc:
-            raise errors.ReferralNotFound(str(exc)) from exc
-        except UnavailableError as exc:
-            raise errors.ReferralError("Сервис недоступен") from exc
+            raise errors.ReferralNotFound from exc
+        except ApiError as exc:
+            self._log.warn(
+                "referral.backend_fault", kind=type(exc).__name__, status=exc.status_code
+            )
+            raise errors.ReferralUnavailable from exc
 ```
 
 Wizard-фича: **все** шаги — методы usecase, включая passthrough (`BookingUsecase.set_services`); шаг возвращает результат-данные (`set_guests → GuestsStep(draft, address_required)` в `dto.py`), а не трогает `DialogManager` — какой экран следующий, решает handler по этим данным.
@@ -167,12 +177,14 @@ def to_window(v: Referral) -> dict[str, Any]:
     return {"code": v.code, "invited": v.invited}
 
 
-def error_text(err: Exception) -> str:
+def error_text(err: Exception) -> str:  # отдаёт .ftl-ключ; тексты — locales/<lang>/referral.ftl
     match err:
         case errors.ReferralNotFound():
-            return "Реферальная программа недоступна."
+            return "referral-error-not-found"
+        case errors.ReferralForbidden():
+            return "referral-error-forbidden"
         case errors.ReferralError():
-            return "Сервис временно недоступен."
+            return "referral-error-unavailable"
         case _:
             raise err  # не наша — в recovery-middleware kit'а
 ```
@@ -289,7 +301,7 @@ __all__ = ["Provider", "cmd_spec", "dialog"]
 - `tests/pkg/test_referral_api.py` — respx-тест нового pkg-клиента (`references/backend-port.md` §A.4).
 - `tests/unit/test_referral_usecase.py` — usecase на **фейке порта**: policy-гейты без I/O, маппинг typed-ошибок в sentinel'ы (образец — `test_profile_usecase.py`).
 - `tests/unit/test_referral_policy.py` — pure policy/views.
-- `tests/flows/test_referral_flow.py` — flow через `BotClient`+`MockMessageManager`+`make_container`/`build_dp` (`tests/_fakes/harness.py`). Бэкенд — `FakeApiClient` (`tests/_fakes/backend.py`; новый pkg-клиент поверх него — добавь `@provide` в `FakesProvider` harness'а). Локай кнопки по `callback_data`/тексту.
+- `tests/flows/test_referral_flow.py` — flow через `BotClient`+`MockMessageManager`+`make_container`/`build_dp` (`tests/_fakes/harness.py`). Бэкенд — `FakeApiClient` (`tests/_fakes/backend.py`; новый pkg-клиент поверх него — добавь `@provide` в `FakesProvider` harness'а); кэш/Redis — `cachekit.MemoryCache`/`testkit.bottest.MemoryRedis` (harness даёт сам). Локай кнопки по `callback_data`/тексту.
 - `tests/flows/test_composition.py` — добавь `referral.dialog` в список детача (`for dialog in (...)`), чтобы startup-smoke покрыл коллизии StatesGroup.
 
 ```python

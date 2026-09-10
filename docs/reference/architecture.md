@@ -84,21 +84,30 @@ http_client/
 ## Composition root (`src/bot/app.py`)
 
 Единственное место сборки. Бот **ничего не проводит в рантайм руками** — он **декларирует** блоки
-в точки расширения tgbotkit:
+в точки расширения kit'ов:
 
 - `ExtensionProvider(Provider)` — точки расширения: `routers` → `RouterBundle` (Dialog'и фич),
   `commands` → `CommandBundle` (`CommandSpec`: команда / pre_checkout / successful_payment),
   `notifiers` → `NotifierBundle` (NATS-подписчики), `error_ux` → `ErrorUX`, `resolver` →
   `OptionalLocaleResolver` (ChainResolver: явный выбор локали ≻ language_code), `stream_bus` →
-  `OptionalStreamBus` (None без JetStream → runner пропускает notifications).
-- `build_container()` — `make_async_container`: инфра (pylibinfra-провайдеры) + pkg
-  (`http_client.Provider`) + платформа (`IdentityProvider`) + фичи (`<feature>.Provider`) +
-  `ExtensionProvider`. Порядок важен: `BotProvider` даёт дефолты, `LogkitProvider` и
-  `ExtensionProvider` идут ПОСЛЕ (last-wins).
-- `run()` — резолв `BotRunner`, `runner.run()` (runner владеет жизненным циклом, на shutdown зовёт `container.close()`).
+  `OptionalStreamBus` (None без JetStream → runner пропускает notifications), `probes` →
+  `healthkit.Probes` (`tgbotkit.probe`, `tgbotkit.redis_probe`, `natskit.probe` — их гоняет
+  `/ready`).
+- `build_container()` — `make_async_container`: инфра (pylibinfra-провайдеры `LogkitProvider`,
+  `ClockProvider`, `CachekitProvider`, `ApiClientsProvider`, `NatsProvider`,
+  `HttpProvider(autostart=False)`, `BotProvider`, `AiogramProvider`) + `AppConfigProvider` (все
+  `*Config` через `<kit>.new_config()`) + pkg (`http_client.Provider`) + платформа
+  (`IdentityProvider`) + фичи (`<feature>.Provider`) + `ExtensionProvider`. Порядок значим
+  (последний побеждает): kit'ы дают дефолты своих Optional*/кортежей (`LogkitProvider` — redact,
+  `HttpProvider` — пробы, `BotProvider` — bundles/ErrorUX/Optional*), поэтому
+  `AppConfigProvider` и `ExtensionProvider` идут ПОСЛЕ них. `Logger` даёт `LogkitProvider`,
+  `Clock` — `ClockProvider`: kit'ы чужих общих типов дефолтами не подменяют.
+- `run()` — лог `starting` (версия/коммит сборки), резолв `BotRunner`, `runner.run()`. Runner
+  занимает HTTP-порт, владеет жизненным циклом и на shutdown зовёт `container.close()`; сорванный
+  старт (невалидный ENV, недоступный Redis/NATS) закрывает контейнер сам.
 
-Вся инфра-проводка (storage/middleware/`setup_dishka`/`setup_dialogs`/polling|webhook/graceful
-shutdown) — в kit'е.
+Вся инфра-проводка (storage/middleware/`setup_dishka`/`setup_dialogs`/polling|webhook/HTTP-порт/
+graceful shutdown) — в kit'е.
 
 | Блок | Точка регистрации (`app.py`, если не указано иное) |
 |---|---|
@@ -108,7 +117,7 @@ shutdown) — в kit'е.
 | dishka Provider фичи | `build_container()` |
 | pkg-клиент нового API | `@provide` в `pkg/http_client/provider.py` (+ `BackendsConfig` в `config.py`) |
 | `StatesGroup` | `platform/dialogs/states.py` (единый каталог) |
-| ErrorUX / resolver локали / stream-bus | методы `ExtensionProvider` |
+| ErrorUX / resolver локали / stream-bus / health-пробы | методы `ExtensionProvider` |
 
 Фасад фичи `__init__.py` экспортит ровно `Provider` + `dialog` (+ `cmd_spec`/`command_specs`) —
 это всё, что видит `app.py`.
