@@ -17,7 +17,7 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
 
 - **Отправляй через `Delivery`** (аргумент `deliver_*`), не через сырой `BgManager`/`bot.*`.
   `Delivery` закрывает `request_id` (фон вне middleware), пустой стек → safe, EDIT не гарантирован,
-  throttle. **Локаль фон НЕ резолвит автоматически** (нет I18nMiddleware): `deliver_*` берёт её сам
+  throttle. **Локаль фон сам не резолвит** (I18nMiddleware там не работает): `deliver_*` берёт её
   (`LocalePrefStore.get(user_id)`) и рендерит ключ через `Delivery.localize(locale, key, args)`.
   Сырой `BgManager` мимо `Delivery` — нет.
 - **Идемпотентность обязательна** (JetStream durable = at-least-once): `token = await
@@ -26,9 +26,8 @@ incoming-апдейта, поэтому они идут мимо outer-middlewar
   резерв истёк на медленной доставке и ушёл соседнему воркеру: запиши warn
   (`notifications.reservation_lost`), не глотай. Ключ стабильный по событию
   (`order-paid:<order_id>`), не по времени. Сбой доставки **пробрасывай** (не глотать) — `JsBus`
-  сделает `nak`, а снятый `release` резерв даст redelivery повторить. «Вряд ли задвоится» — не
-  аргумент. (Тот же токенный `reserve/commit/release` у `ChargeGuard`/`RefundGuard` для
-  successful/refunded_payment.)
+  сделает `nak`, а снятый `release` резерв даст redelivery повторить. (Тот же токенный
+  `reserve/commit/release` у `ChargeGuard`/`RefundGuard` для successful/refunded_payment.)
 - **`deliver_*` — быстрый**: дедуп → резолв `chat_id` → резолв локали → `localize` → отправка.
   Тяжёлое (батч, рендер) — в usecase/job, не в обработчике доставки.
 - **`chat_id` резолвится по link tg→chat** (его пишет онбординг, напр. `start.mark_onboarded`);

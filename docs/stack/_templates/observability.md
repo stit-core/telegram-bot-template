@@ -9,8 +9,8 @@ status: draft
 
 ## Logging
 <Структурные JSON-логи в stdout через `pylibinfra.logkit` (`LOG_LEVEL`/`LOG_FORMAT`/`LOG_SILENT`,
-redact — `LOG_REDACT_*`). Метрики/трейсы по OTLP шаблон не экспортирует (кит `telemetry` не
-подключён). Trace-correlation (`request_id`, `X-Request-ID` к бэкендам) и PII-redact — из logkit.>
+redact — `LOG_REDACT_*`). Метрики/трейсы шаблон не экспортирует (кит `telemetry` не подключён —
+сигналы китов no-op). Trace-correlation (`request_id`, `X-Request-ID` к бэкендам) и PII-redact — из logkit.>
 
 ## Auto-emitted (kit)
 <Что даёт logkit/tgbotkit само: структурные логи апдейтов с ctx-полями `request_id`/`update_id`/

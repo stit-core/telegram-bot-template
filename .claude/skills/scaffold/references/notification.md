@@ -1,6 +1,6 @@
 # scaffold › notification — NATS-подписчик → сообщение/диалог
 
-Добавляет реакцию на **событие бэкенда** (NATS-subject) → push в Telegram через `BgManager`. Образец — `features/notifications/` (`build_router` + `deliver.py`). Подписка/доставка/drain/ack — в `tgbotkit` (`NotificationRouter`/`NotificationRunner`/`Delivery`); в шаблоне — **какие subject'ы и что слать**. Соответствует rule `background-updates` (фон не проходит обычные middleware).
+Добавляет реакцию на **событие бэкенда** (NATS-subject) → push в Telegram через `Delivery` (обёртка kit'а над `BgManager`). Образец — `features/notifications/` (`build_router` + `deliver.py`). Подписка/доставка/drain/ack — в `tgbotkit` (`NotificationRouter`/`NotificationRunner`/`Delivery`); в шаблоне — **какие subject'ы и что слать**. Соответствует rule `background-updates` (фон не проходит обычные middleware).
 
 > Транспорт push — **JetStream durable + explicit ack** (надёжная доставка), core — для эфемерных. Выбор — `docs/stack/messaging.md`.
 
@@ -18,7 +18,7 @@
 
 ## 1. Подтвердить контракт события
 
-- `stream` / `subject` / `durable`-имя (формат durable у бота: `bot-<subject-kebab>`).
+- `stream` / `subject` / `durable`-имя (формат durable у бота: `bot-<subject-kebab>`). Новый stream — ещё и в `NATS_JS_STREAM_NAMES` (env, `.env.example`; subjects стрима — `<name>.>`).
 - Форма payload (минимум: id агрегата + `user_ref` для резолва chat_id).
 - Идемпотентность: at-least-once (JetStream) — дедуп по чему (`event_id`/`order_id`)?
 - Как резолвить `chat_id` адресата (обычно `link:chat:<user_ref>`, пишется при онбординге — `platform/links.py`)?
@@ -31,13 +31,15 @@
 from typing import Any
 from pylibinfra.cachekit import Cache
 from pylibinfra.logkit import Logger
-from pylibinfra.tgbotkit import Delivery, DeliveryDedup
+from pylibinfra.tgbotkit import Delivery, DeliveryDedup, LocalePrefStore
 from bot.platform.links import chat_link_key
 
 
 class SubExpiringDeliverer:
-    def __init__(self, cache: Cache, dedup: DeliveryDedup, log: Logger) -> None:
-        self._cache, self._dedup, self._log = cache, dedup, log
+    def __init__(
+        self, cache: Cache, dedup: DeliveryDedup, locales: LocalePrefStore, log: Logger
+    ) -> None:
+        self._cache, self._dedup, self._locales, self._log = cache, dedup, locales, log
 
     async def on_expiring(self, payload: Any, delivery: Delivery) -> None:
         if not isinstance(payload, dict):
@@ -54,9 +56,9 @@ class SubExpiringDeliverer:
         if token is None:
             return
         try:
-            await delivery.send_message(
-                chat_id=chat_id, text=delivery.localize(None, "sub-expiring")
-            )
+            locale = await self._locales.get(chat_id)  # фон вне I18nMiddleware — локаль берём сами
+            text = delivery.localize(locale, "notifications-sub-expiring")
+            await delivery.send_message(chat_id=chat_id, text=text)
         except Exception:
             await self._dedup.release(key, token)  # сбой → проброс → nak → redelivery повторит
             raise
@@ -86,7 +88,7 @@ def build_router(cache: Cache, client: aioredis.Redis, log: Logger) -> Notificat
     deliverer = OrderDeliverer(cache, DeliveryDedup(client), LocalePrefStore(cache), log)
     router.on("orders", "orders.paid", "bot-orders-paid", deliverer.on_order_paid)
     # ↓ новая подписка
-    sub = SubExpiringDeliverer(cache, DeliveryDedup(client), log)
+    sub = SubExpiringDeliverer(cache, DeliveryDedup(client), LocalePrefStore(cache), log)
     router.on("subscriptions", "subscription.expiring", "bot-sub-expiring", sub.on_expiring)
     return router
 ```
@@ -101,6 +103,7 @@ def build_router(cache: Cache, client: aioredis.Redis, log: Logger) -> Notificat
 
 - unit-тест deliverer (образец `tests/unit/test_notifications.py`): `cachekit.MemoryCache` + фейк `Delivery` (`tests/_fakes/delivery.py`) + `DeliveryDedup` над `testkit.bottest.MemoryRedis` (TTL двигает `clockkit.Tickable`). Проверь: дедуп срабатывает (второй вызов — no-op), нет link → no send, happy path → один send с нужным текстом/chat_id, сбой → проброс + `release` → повтор доставляет, истёкший резерв → warn.
 - идемпотентность (at-least-once): два одинаковых payload → одна доставка.
+- ключ текста (`notifications-sub-expiring`) — в `locales/<lang>/notifications.ftl` всех локалей.
 - `make check`. Новый/изменённый subject — это инфра-поверхность → `infra-handoff` (cross-service NATS-subject).
 
 `feat(notifications): deliver subscription.expiring push`

@@ -1,6 +1,6 @@
 ---
 name: scaffold
-description: Добавить строительный блок в существующего бота по конвенциям шаблона. Варианты — feature (новый вертикальный срез features/<name>/ с гексагоном, Provider, StatesGroup, регистрацией в app.py), dialog (новый Dialog/набор Window внутри фичи), window (окно в существующий диалог), backend-port (pkg-клиент + порт фичи в ports.py), middleware (outer/inner-middleware — через PR в tgbotkit), job (периодическая джоба timerkit), notification (NATS-подписчик + доставка через BgManager). Активируй когда юзер говорит "добавь фичу/диалог/окно/порт/джобу/уведомление", "новая команда/кнопка/экран", "scaffold a feature", "после события X слать сообщение", "фиче A нужны данные из B/бэкенда". Для правки существующего блока scaffold НЕ нужен — это прямая правка.
+description: Добавить новый строительный блок в бота по конвенциям шаблона — feature (вертикальный срез features/<name>/ с гексагоном, Provider, StatesGroup, регистрацией в app.py), dialog (новый Dialog внутри фичи), window (окно в существующий диалог), backend-port (pkg-клиент + порт фичи), middleware (бизнес-фильтр в шаблоне или PR в tgbotkit), job (периодическая джоба timerkit), notification (NATS-подписчик + доставка через Delivery). Используй, когда нужно добавить фичу, диалог, окно, команду или экран, дать фиче данные бэкенда или другой фичи, слать сообщение по событию или расписанию, в том числе по карте флоу из dialog-deep-dive (/scaffold). Правка существующего блока — прямая правка, не scaffold.
 ---
 
 # Skill: scaffold (роутер)
@@ -15,13 +15,13 @@ description: Добавить строительный блок в сущест�
 | Новый `Dialog`/набор `Window` внутри существующей фичи | `dialog` | `references/dialog.md` | «добавь второй диалог в profile», «отдельный флоу настроек» |
 | Окно в существующий диалог (state + getter + handler) | `window` | `references/window.md` | «добавь экран подтверждения», «ещё один шаг в визард» |
 | pkg-клиент (метод/модуль в `pkg/http_client/`) + порт фичи | `backend-port` | `references/backend-port.md` | «фиче нужны данные с бэкенда», «подключи CRM/LLM-API», «фиче A нужны данные из B» |
-| Outer/inner-middleware (throttle/auth/i18n) | `middleware` | `references/middleware.md` | «добавь rate-limit», «глобальную проверку бана» |
+| Перехват апдейтов (rate-limit, ban-gate, проверка роли) — env-ручка кита, фильтр в шаблоне или PR в tgbotkit | `middleware` | `references/middleware.md` | «добавь rate-limit», «глобальную проверку бана» |
 | Периодическая джоба (`timerkit`) | `job` | `references/job.md` | «каждые N минут чистить», «напоминание по расписанию» |
-| NATS-подписчик → сообщение/диалог (`BgManager`) | `notification` | `references/notification.md` | «после события бэкенда X слать сообщение», «push при оплате» |
+| NATS-подписчик → сообщение/диалог (`Delivery`) | `notification` | `references/notification.md` | «после события бэкенда X слать сообщение», «push при оплате» |
 
 Несколько вариантов в одной задаче (новая фича с уведомлением) — веди по основному (`feature`), затем подключи нужные шаги из соседнего reference (`notification`).
 
-## Когда НЕ применять
+## Когда не применять
 
 - **Правка существующего** блока (переписать getter, поменять текст окна) — точечная правка без scaffold.
 - **Проектирование нового флоу с нуля** (окна/переходы ещё не зафиксированы) — сначала `/dialog-deep-dive`, scaffold — по его артефакту (в т.ч. когда дизайн приходит из стратегии-репо `<org>/strategy`, слой `telegram-bot-flow/<surface>/` — deep-dive транслирует его в карту флоу).
@@ -35,10 +35,10 @@ Reference даёт variant-специфичные шаги; этот ритм о
 
 1. **Подтвердить вход.** Уточни недостающее одним блоком до начала (что именно, имя/состояния, endpoint бэкенда, тексты/ключи i18n) — детали в reference.
 2. **Сделать изменение** по шагам reference (scaffold-файлы / правка слоёв / регистрация в точках расширения).
-3. **RED→GREEN.** Где появляется логика — сначала тест (red по нужной причине), потом код до green. unit для policy/views, flow (`BotClient`+`MockMessageManager`+`JsonMemoryStorage`) для сценария окна. Мокай **порт**, не транспорт.
+3. **RED→GREEN.** Где появляется логика — сначала тест (red по нужной причине), потом код до green. unit для policy/views и usecase на фейке порта, flow (`BotClient`+`MockMessageManager`+`JsonMemoryStorage`, бэкенд — `FakeApiClient`) для сценария окна; транспорт не мокай.
 4. **Startup-smoke.** Тронул `StatesGroup`/`Dialog`/`Window` → `uv run pytest -k collision` (контейнер собирается, `setup_dialogs` без коллизий).
-5. **Верифицируй перед claim «готово»:** `make check` (ruff + import-linter + mypy + pytest). Точечно — `uv run pytest tests/...` / `make lint` по ходу.
-6. **Conventional Commit:** `feat(<scope>): <subject>` (точный scope — имя фичи). Тронул инфра-поверхность (env/секрет/NATS-subject/runtime-dep) или нужна инфра-механика → `infra-handoff` до коммита.
+5. **Верифицируй перед claim «готово»:** `make check`. Точечно — `uv run pytest tests/...` / `make lint` по ходу.
+6. **Коммит** (когда юзер попросит): Conventional Commit `feat(<scope>): <subject>`, scope — имя фичи. Тронул инфра-поверхность (env/секрет/NATS-subject/runtime-dep) или нужна инфра-механика → `infra-handoff` до коммита.
 
 ## Регистрация в точки расширения tgbotkit
 

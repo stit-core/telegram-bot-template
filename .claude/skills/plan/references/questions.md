@@ -1,11 +1,11 @@
 # Планировочные вопросы (бот)
 
-Список для шага 1 skill `plan`. Выбирай 3–5 релевантных задаче — не задавай всё подряд. Дизайн-вопросы задавай через `AskUserQuestion`. Если на 5+ ответ «не знаю / решай сам» — задача недозрелая: предложи research-spike или отложить.
+Банк для шага 1 skill `plan`: бери вопросы, ответ на которые меняет план этой задачи, — не всё подряд. Дизайн-вопросы задавай через `AskUserQuestion`.
 
 ## Скоуп
 - Что входит в задачу? Что осознанно НЕ входит?
 - Это новая фича / новый диалог-флоу / рефакторинг / эксперимент? (Багфикс → `triage-failure`, не план.)
-- Связано ли с другими PR/задачами/секциями roadmap?
+- Связано ли с другими PR/задачами/планами (и программой хаба)?
 
 ## Диалог-флоу (presentation)
 - Сколько окон, какие переходы между ними? (Если флоу ещё не зафиксирован → `dialog-deep-dive` сперва.)
@@ -34,18 +34,20 @@
 ## Фон / события
 - Новый notification (NATS-subject → Telegram)? Durable consumer (JetStream) или core?
 - Периодическая джоба (`timerkit`)? Идемпотентность доставки (at-least-once)?
-- Фоновые апдейты не проходят обычные middleware — нужно дублировать на `DIALOG_EVENT_NAME`?
+- Фон идёт вне middleware-цепочки: локаль — `LocalePrefStore` + `Delivery.localize`, дедуп —
+  `DeliveryDedup` (rule `background-updates`) — учтено в атомах?
 
 ## Тесты
-- RED-first для какого слоя? unit (policy/views) или flow (BotClient+MockMessageManager)?
-- Мокаем порт (не транспорт)? Локаторы кнопок по callback_data?
+- RED-first для какого слоя? unit (policy/views, usecase на фейке порта) или flow
+  (BotClient+MockMessageManager)?
+- Граница бэкенда в flow-тестах — `FakeApiClient`, не транспорт? Локаторы кнопок по callback_data/i18n-ключу?
 
 ## Rollout / откат
 - Деплой ломает живые диалоги (State-эволюция)? error-handler как сеть достаточен?
 - Что делать, если падает в проде? `/start` RESET_STACK спасает?
 
-## Инфра-поверхность (→ секция Infra impact + skill infra-handoff)
-- Новый/изменённый required env-var/секрет (`config.py`/`.env.example`, `BOT_TOKEN`/`WEBHOOK_*` — значение в compose env проекта)?
+## Инфра-поверхность (→ раздел `## Handoff` плана + skill infra-handoff)
+- Новый/изменённый required env-var/секрет (`config.py`/`.env.example`, `BOT_TOKEN`/`BOT_WEBHOOK_*` — значение в `.env` хаба `<org>/infra`)?
 - Webhook vs polling-режим тронут? `allowed_updates` расширяются?
 - Cross-service NATS-subject (notification)?
 - Новая инфра-механика (middleware/runtime/новый kit-helper) → это **не правка шаблона**, а PR в `tgbotkit` через `infra-handoff`.

@@ -9,7 +9,7 @@ status: draft
 
 ## Mode
 <Режим рантайма: polling (дев/простой прод) или webhook (прод за reverse-proxy). `BOT_MODE` +
-`WEBHOOK_*` (URL, path, secret) при webhook. Выбор задаёт runner kit'а — шаблон только декларирует.>
+`BOT_WEBHOOK_*` (base URL, path, secret) при webhook. Выбор задаёт runner kit'а — шаблон только декларирует.>
 
 ## In-process
 <Что поднимается в ОДНОМ процессе (отдельного worker-образа нет): обработка апдейтов (диалоги),

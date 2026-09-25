@@ -24,21 +24,17 @@ payments/webapp). Observability, тесты и релиз — встроены; 
 
 ```
 business-strategy-template (<org>/strategy)   ← дизайн диалогов проектируется здесь
-        │  scaffold диалогов по stable-артефактам telegram-bot-flow/<surface>/
+        │  /dialog-deep-dive читает stable-артефакты telegram-bot-flow/<surface>/ (read-only)
         ▼
 telegram-bot-template (<org>/<bot>)  ← вы здесь   ──► stit-core/pylibinfra[tgbotkit]
-        │  build + push image
+        │  /release: образ <registry>/<org>/bot:vX.Y.Z + INFRA-HANDOFF
         ▼
-project-infra-template-compose (<org>/infra)   ← деплой образа
+project-infra-template-compose (<org>/infra)   ← операционный хаб: make bump SVC=bot TAG=<v>
 ```
 
-Корп control-plane (registry образов) —
-[`corp-infra-template`](https://git.stit.tech/stit-core/corp-infra-template). Подробнее —
+Задачи обычно приходят из хаба `<org>/infra` — агент работает здесь обвязкой этого репо; прямой
+заход в репо — тоже нормальный режим. Роль, соседи и стыки —
 [`docs/reference/ecosystem.md`](docs/reference/ecosystem.md).
-
-**Два пути — без вендор-лока.** Registry и адреса внешних сервисов (бэкенды, Redis, NATS) указывают
-либо на наш **managed** (`*.stit.tech`), либо на **ваш self-hosted**. Всё конфигурируется через env,
-не зашито в код; архитектура одинакова.
 
 ## Использовать как шаблон
 
@@ -77,8 +73,8 @@ claude                 # → /init-service
   health-пробы `/ready`, generic-механика i18n/notifications/payments/webapp.
 - **Дизайн флоу** — артефакты в соседнем стратегии-репо; маппинг в код —
   [`docs/reference/dialog-mapping.md`](docs/reference/dialog-mapping.md).
-- **Тесты** — unit, flow (`BotClient` + фейк порта), integration (testcontainers redis/nats),
-  startup-smoke (коллизии `StatesGroup`).
+- **Тесты** — unit, flow (`BotClient` + фейк бэкенда `FakeApiClient`), integration
+  (testcontainers redis/nats), startup-smoke (коллизии `StatesGroup`).
 - **Gate** — `make check` = ruff format/check + import-linter + mypy (src+tests) + lock-check +
   pytest с полом покрытия (pre-push хук).
 
@@ -108,8 +104,9 @@ make release VERSION=vX.Y.Z   # образ в registry (skill /release)
 
 ## Release
 
-Зона репо: **код → image в registry, STOP.** Деплой — другие репо. Одна команда `make release
-VERSION=vX.Y.Z` (skill `/release`). Полностью — [`docs/reference/release.md`](docs/reference/release.md).
+Зона репо: **код → image в registry, STOP.** Выкатка тега — в хабе `<org>/infra`
+(`make bump SVC=bot TAG=<v>`). Одна команда `make release VERSION=vX.Y.Z` (skill `/release`).
+Полностью — [`docs/reference/release.md`](docs/reference/release.md).
 
 ## Часть экосистемы stit
 

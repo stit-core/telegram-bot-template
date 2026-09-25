@@ -1,6 +1,6 @@
 ---
 name: dialog-deep-dive
-description: Спроектировать флоу диалога как source-of-truth ДО кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup. Ведёт сессию через раунды AskUserQuestion (без монологов и догадок), фиксирует флоу в docs (карта диалога) + рабочую память state/. Аналог domain-deep-dive, но для UI-сценария бота. Если рядом sibling-checkout'ом лежит стратегия-репо (`<org>/strategy`, форк business-strategy-template) со слоем telegram-bot-flow/<surface>/ — работает ТРАНСЛЯТОРОМ его stable-артефактов (features: dialog/window/use-case + сквозные command/notification) в карту флоу и код-понятия, а не интервьюером. Активируй когда проектируешь новый пользовательский сценарий/флоу, говоришь "/dialog-deep-dive", "спроектируем диалог", "продумаем флоу/экраны", "как должен идти этот сценарий", "разверни дизайн из стратегии", или когда init-service/plan дошёл до нового флоу. Точечная правка уже спроектированного окна — прямой Edit/scaffold, не сюда.
+description: Спроектировать флоу диалога бота как source of truth до кода — окна, переходы, getter-данные, состояния виджетов, StatesGroup — в карту docs/stack/dialogs.md раундами AskUserQuestion. Если рядом лежит стратегия-репо ../strategy (<org>/strategy) со слоем telegram-bot-flow/<surface>/, работает транслятором её stable-артефактов (фичи dialog/window/use-case + сквозные command/notification) в карту флоу и код-понятия, а интервью ведёт только по дырам. Используй для нового или переделываемого пользовательского сценария, по /dialog-deep-dive и когда init-service или plan дошли до нового флоу. Точечная правка уже спроектированного окна — прямой Edit или scaffold.
 ---
 
 # Skill: dialog-deep-dive
@@ -15,7 +15,7 @@ description: Спроектировать флоу диалога как source-
 - `/init-service` дошёл до этапа 1 (проектирование флоу), `/plan` упёрся в «а как идёт диалог».
 - Переделка существующего флоу (несколько окон/переходов меняются разом).
 
-## Когда НЕ применять
+## Когда не применять
 
 - Одно окно/одна кнопка в готовый диалог, флоу очевиден → прямой `scaffold window`.
 - Платформа (polling/webhook, Redis, бэкенды) → `stack-deep-dive`.
@@ -23,21 +23,15 @@ description: Спроектировать флоу диалога как source-
 
 ## Главный ритм: AskUserQuestion
 
-Скилл — **интервьюер**, не сценарист. Партнёр — тот, кто владеет продуктовым сценарием; его решения дословно ложатся в карту флоу, скилл их **не сочиняет**. Каждый шаг — раунд `AskUserQuestion` (до 4 вопросов) → ответ → пишем в карту/`state` через `Edit` → следующий раунд.
-
-- ❌ Длинный prose «вот как бы я нарисовал флоу» вместо вопросов.
-- ❌ «По умолчанию» добавить экран подтверждения/отмены, потому что «обычно так».
-- ❌ >4 вопросов одним AskUserQuestion (инструмент режет молча).
-- ❌ Копить ответы «запишу в конце» — пиши после каждого раунда (теряется при `/clear`).
-- ✅ Сомневаешься, нужен ли отдельный экран подтверждения → лишний раунд, а не догадка.
+Скилл — **интервьюер**, не сценарист. Партнёр — тот, кто владеет продуктовым сценарием: его решения дословно ложатся в карту флоу, а скилл их не сочиняет — в том числе «обычные» экраны подтверждения/отмены. Каждый шаг — раунд `AskUserQuestion` (до 4 вопросов — лимит инструмента) → ответ → запись в карту/`state` через `Edit` сразу после раунда, чтобы ответы пережили `/clear` → следующий раунд. Сомнение (нужен ли отдельный экран подтверждения?) — повод для ещё одного раунда, а не для догадки или монолога «как бы я нарисовал флоу».
 
 Enum'ы как опции (тип виджета, тип перехода, launch-mode); тексты, имена State, конкретные данные — свободной формой (Other).
 
 ## Вход из стратегии (`<org>/strategy`)
 
-Если рядом sibling-checkout'ом лежит стратегия-репо (форк `business-strategy-template`, жёсткий
-upstream экосистемы) и в нём для bot-поверхности есть слой
-`docs/projects/<project-slug>/telegram-bot-flow/<surface>/` — **дизайн уже спроектирован
+Если рядом sibling-checkout'ом лежит стратегия-репо (`../strategy`, форк
+`business-strategy-template` — design-time source of truth проекта) и в нём для bot-поверхности
+есть слой `docs/projects/<project-slug>/telegram-bot-flow/<surface>/` — **дизайн уже спроектирован
 аналитиком** (скиллы `telegram-bot-flow-deep-dive`/`-audit`). Тогда скилл — **транслятор**, не
 интервьюер: читает 5 kind (слой features-ориентирован — фича `features/<feature>/{dialog.md, window.md,
 use-case.md}` + сквозные `command.md`/`notification.md` на корне) и разворачивает их в карту флоу и
@@ -49,7 +43,7 @@ use-case.md}` + сквозные `command.md`/`notification.md` на корне)
 | `features/<feature>/window.md` (H2 на окно: `state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state` = имя `State`); текст → `I18NFormat`/`Format` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + **fallback**); `errors` → `ErrorUX`/getter-дефолты |
 | `features/<feature>/use-case.md` (H2 на UC: `operation`, Inputs/Outputs/Dependencies/Steps/Errors) | метод-оркестратор `usecase` фичи (имя ← `operation`); `Dependencies` `use-case:<ctx>.<Operation>` → порт (`ports.py`) → pkg-клиент; `Outputs`/`Errors` → sentinel-исходы для `when` окна |
 | `command.md` (`command`, `starts`, `stack`, `payload`) | dispatcher-level `CommandSpec` (`CommandBundle`); `stack: reset` → `RESET_STACK`; deep-link `payload` → `start_data` |
-| `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`/`BgManager`); `trigger: event:…` → subject; идемпотентность |
+| `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`, доставка через `Delivery`); `trigger: event:…` → subject; идемпотентность |
 
 Действия и данные окна ссылаются на **use-case бота** фичи: `widget.action` / `getter.source` =
 `use-case:<uc-slug>` (реф **без точки**) → метод `usecase` фичи; сам bot UC в `Dependencies` ссылается
@@ -59,11 +53,11 @@ use-case.md}` + сквозные `command.md`/`notification.md` на корне)
 `interface/<surface>/` той же стратегии. Полный маппинг полей в файлы фичи —
 `docs/reference/dialog-mapping.md`.
 
-**Контракт чтения.** Брать только `status: stable`-артефакты; стратегия-репо **read-only** (в неё
-не пишем — дыры в дизайне эскалируются аналитику запуском `/telegram-bot-flow-deep-dive`, до ответа
-фиксируются в `state/` как `**blocker**`). Карта флоу всё равно пишется в `docs/stack/dialogs.md`
-(с пометкой источника — `<project-slug>`/`<surface>` стратегии): она остаётся входом
-`scaffold`/`preview-flow`. Раунды `AskUserQuestion` — **только по дырам** (чего в артефактах нет:
+**Контракт чтения.** Брать только `status: stable`-артефакты; стратегия-репо отсюда **read-only**.
+Дыры в дизайне закрываются в `../strategy` её скиллами (`/telegram-bot-flow-deep-dive` — аналитик
+или агент из хаба `<org>/infra`); до ответа они фиксируются в `state/` как `**blocker**`. Карта флоу
+всё равно пишется в `docs/stack/dialogs.md` (с пометкой источника — `<project-slug>`/`<surface>`
+стратегии): она остаётся входом `scaffold`/`preview-flow`. Раунды `AskUserQuestion` — **только по дырам** (чего в артефактах нет:
 тексты ошибок вне канон-ключей, платформенные детали), не по уже принятым решениям аналитика.
 
 ## Что проектируем (оси флоу)
@@ -114,7 +108,7 @@ CONFIRM отмена → Back на OFFER. stale → ErrorUX подсказыва
 
 Флоу готов отдавать в `scaffold`, когда:
 1. Каждое окно имеет `State`, getter-ключи (с источником) и переходы — нет «висящих» окон.
-2. **Достижимость**: из точки входа есть путь в каждое окно; из каждого окна есть выход (нет тупиков). Сомнительно — проверь графом (`preview-flow`, `render_transitions`).
+2. **Достижимость**: из точки входа есть путь в каждое окно; из каждого окна есть выход (нет тупиков) — пройди по таблице переходов; при переделке существующего флоу сверься с графом текущего кода (`preview-flow`).
 3. Состояние виджетов — только JSON-примитивы (rule `storage-serialization`).
 4. `StatesGroup` не пересекается с существующими (rule `state-lifecycle`).
 5. Ошибочные/пустые ветки описаны (getter-дефолты, `on_error`, stale → `ErrorUX`).
@@ -126,14 +120,9 @@ CONFIRM отмена → Back на OFFER. stale → ErrorUX подсказыва
 
 1. Перечислить спроектированные/обновлённые флоу (карты в `docs/stack/dialogs.md`).
 2. Нерешённые `**blocker**` (из `state/`).
-3. Предложить: проверить граф (`/preview-flow`) перед кодом; затем `scaffold`. Если пришёл из `/init-service` — вернуться в оркестратор (этап 2 — стек).
+3. Предложить следующий шаг: `scaffold`, после него — сверка графа кода с картой (`/preview-flow`). Если пришёл из `/init-service` — вернуться в оркестратор (этап 2 — стек).
 
-## Запреты
+## Границы
 
-- Не сочинять флоу/экраны — спрашивать через `AskUserQuestion`.
-- Не писать код (`dialogs.py`/getters/handlers) — это `scaffold`, после дизайна.
-- Не оставлять окно без перехода-выхода (тупик) или без `State`.
-- Не класть в виджет-состояние не-JSON (`datetime`/объект).
-- Не пересекать новую `StatesGroup` с существующими.
-- Не аккумулировать историю в `state/` — forward-only.
-- Не задавать >4 вопросов одним AskUserQuestion.
+Скилл пишет только карту флоу и `state/`; код (`dialogs.py`/getters/handlers) разворачивает
+`scaffold` по готовой карте.

@@ -89,42 +89,15 @@ echo
 echo "=== INFRA HANDOFF · передай инфра-админу out-of-band ==="
 echo "BOT_TAG → $VERSION   (один образ; migrate-образа нет, бот stateless)"
 
-# Single-file модель: единый roadmap.md. На каждую `### <slug>`-секцию под `## Active`
-# захватываем подсекцию `**Infra impact.**` (bold-лейбл) до следующего bold-лейбла /
-# `#### `-фазы / `### `/`## `-границы. Пустой маркер `—`/`|` пропускаем.
-roadmap=.claude/plans/roadmap.md
-impacts=""
-if [ -f "$roadmap" ]; then
-    impacts=$(awk '
-      function emit(s, line,   t) {
-        t = line; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
-        if (t == "" || t == "—" || t == "|") return
-        if (!hdr[s]) { print "--- " s " ---"; hdr[s] = 1 }
-        print line
-      }
-      /^## Active/ { inact = 1; next }
-      /^## /       { inact = 0; slug = ""; cap = 0; next }
-      !inact       { next }
-      /^### /      { slug = $0; sub(/^### /, "", slug); sub(/ .*/, "", slug); cap = 0; next }
-      slug == ""   { next }
-      /^\*\*Infra impact\.\*\*/ {
-        cap = 1
-        rest = $0; sub(/^\*\*Infra impact\.\*\*[[:space:]]*/, "", rest)
-        emit(slug, rest)
-        next
-      }
-      cap && /^\*\*[^*]+\.\*\*/  { cap = 0; next }
-      cap && /^(#### |### |## )/ { cap = 0 }
-      cap                        { emit(slug, $0) }
-    ' "$roadmap")
-fi
+# Handoff активных планов: разделы `## Handoff` в .claude/plans/*.md (validate-plan.sh --handoff).
+impacts=$(bash scripts/validate-plan.sh --handoff)
 if [ -n "$impacts" ]; then
     echo
-    echo "Накопленные infra-изменения (roadmap.md → **Infra impact.** в активных планах):"
+    echo "Накопленный handoff (раздел ## Handoff активных планов .claude/plans/):"
     echo "$impacts"
 else
     echo
-    echo "(нет записанных **Infra impact.** — убедись, что всё инфра-затрагивающее"
+    echo "(в активных планах нет раздела ## Handoff — убедись, что всё инфра-затрагивающее"
     echo " зафиксировано: .claude/rules/infra-impact.md / skill infra-handoff)"
 fi
 

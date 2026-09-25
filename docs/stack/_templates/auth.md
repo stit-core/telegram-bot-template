@@ -22,5 +22,5 @@ status: draft
 ## Generates
 <Что de-template родит:
 - `platform/identity/` (`BotIdentity` + `IdentityProvider`) — wiring
-- `AppConfig.admin_ids` + `admin_id_set()` в `config.py`
+- `AppConfig.admin_ids` (`frozenset[int]` из csv) в `config.py`
 - env: `APP_ADMIN_IDS`>

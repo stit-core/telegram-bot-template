@@ -12,11 +12,10 @@
 2. `git clone git@git.stit.tech:<org>/<bot>.git && cd <bot>`.
 3. Один раз на машину — доступ к приватным модулям той же Gitea:
    `git config --global url.git@git.stit.tech:.insteadOf https://git.stit.tech/`.
-4. `make setup` — pinned dev-tools (uv) + git-хуки.
+4. `make setup` — зависимости (`uv sync`) + git-хуки.
 
-> `pylibinfra` пинится по git-ref в `[tool.uv.sources]`; если `tgbotkit` ещё не тегнут — ревизия
-> указывает на коммит с kit'ом. `git.stit.tech` — managed-хост; self-hosted форк живёт на своей
-> Gitea (подставь её хост в clone-URL и `insteadOf`).
+> `pylibinfra` пинится git-тегом в `[tool.uv.sources]` (`pyproject.toml`) и тянется из той же
+> Gitea `git.stit.tech`. `make release` берёт registry-хост и оргу образа из `git remote origin`.
 
 ## 1. `/init-service`
 
@@ -63,14 +62,16 @@ scaffold фич → прун reference. Дальше шаги 2–6 — под �
 
 ## 6. Удали/переделай reference-фичи
 
-Когда свои фичи сгенерированы — убери учебные `profile`/`payments`/`lang`/`notifications` и
-**переделай** `start` под своё меню (чеклист — `de-template references/prune.md`):
-- `start` обычно НЕ удаляется целиком — переписывается под корневой `LaunchMode.ROOT` + своё меню
-  (бот без ROOT-диалога не имеет точки входа).
+Когда свои фичи сгенерированы — убери учебные `profile`/`booking`/`payments`/`lang`/`notifications`
+и **переделай** `start` под своё меню (чеклист — `de-template references/prune.md`):
+- `start` обычно не удаляется целиком, а переписывается под корневой `LaunchMode.ROOT` + своё меню:
+  бот без ROOT-диалога не имеет точки входа.
 - `payments`/`notifications`/`lang` — прунятся, если бот без платежей/push/i18n; иначе адаптируются.
 
 ## 7. Готово
 
 `make check` зелёный + startup-smoke (`pytest -k collision`) чистый → бот больше ничего не помнит про
-шаблон: своё имя, свои фичи, стек, deps. Дальше — обычный дневной флоу через `/smartdev` (устройство
-`.claude`-системы — `docs/contributing.md`). Релиз образа — `docs/reference/release.md`.
+шаблон: своё имя, свои фичи, стек, deps. Дальше — обычный дневной флоу через `/smartdev`: задачи
+обычно приходят агентом из хаба `<org>/infra`, прямой заход тоже нормален
+([reference/ecosystem.md](reference/ecosystem.md)); устройство `.claude`-системы —
+`docs/contributing.md`. Релиз образа — `docs/reference/release.md`.

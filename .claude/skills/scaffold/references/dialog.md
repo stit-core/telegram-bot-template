@@ -77,7 +77,14 @@ profile_settings_dialog = Dialog(settings_menu)  # своя StatesGroup
 # app.py (фрагмент ExtensionProvider)
 @provide
 def routers(self) -> RouterBundle:
-    return (start.dialog, profile.dialog, profile.settings_dialog, payments.dialog, lang.dialog)
+    return (
+        start.dialog,
+        profile.dialog,
+        profile.settings_dialog,
+        payments.dialog,
+        lang.dialog,
+        booking.dialog,
+    )
 ```
 
 ## 6. Тесты + верификация

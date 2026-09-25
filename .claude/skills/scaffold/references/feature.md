@@ -192,16 +192,16 @@ def error_text(err: Exception) -> str:  # отдаёт .ftl-ключ; текст
 ## 6. Presentation
 
 ```python
-# dialogs.py — статические подписи I18NFormat, динамика Format("{...}")
+# dialogs.py — текст окна I18NFormat (ключ .ftl; значения getter'а — Fluent-аргументы { $code }),
+# Format("{...}") — только для данных без переводимого текста
 from aiogram_dialog import Dialog, Window
-from aiogram_dialog.widgets.text import Format
 from pylibinfra.tgbotkit import I18NFormat
 from bot.features.referral import getters
 from bot.features.referral.state import ReferralSG
 from bot.platform.dialogs.common import back_to_menu
 
 view_window = Window(
-    Format("🎁 Код: <b>{code}</b>\nПриглашено: {invited}"),
+    I18NFormat("referral-view"),  # locales/<lang>/referral.ftl: 🎁 Код: <b>{ $code }</b> …
     back_to_menu("ref_back"),
     state=ReferralSG.VIEW,
     getter=getters.referral_getter,
@@ -225,7 +225,8 @@ async def referral_getter(
 ) -> dict[str, Any]:
     try:
         return views.to_window(await uc.view(identity))
-    except errors.ReferralError as exc:  # ловим в getter, окно не падает
+    except errors.ReferralError:
+        # ловим в getter, окно не падает; текст ошибки — как в profile_getter
         return {"code": "—", "invited": 0}
 ```
 

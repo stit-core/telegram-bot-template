@@ -13,19 +13,33 @@ i18n/notifications/payments/webapp) — **в `pylibinfra/tgbotkit`**, не зд�
 
 ## Точка входа
 
-- **`/smartdev`** — cockpit сессии: сводка (`make status`: ветка, drift, активный план, гейт) +
-  переключение в нужный режим. Запускай в начале / после `/clear`.
+- **Как сюда попадают.** Обычно — агентом из хаба `<org>/infra`: задача ведётся в общем плане
+  хаба, её фазу бота ты выполняешь здесь обвязкой этого репо (этот файл, скиллы, гейт `make check`)
+  и возвращаешь в хаб тег образа и INFRA-HANDOFF. Прямой заход в репо — тоже нормальный режим с той
+  же обвязкой; всё, что требует действия соседей, оформляется блоком `/infra-handoff`.
+- **`/smartdev`** — cockpit сессии: сводка `make status` (ветка, рабочее дерево, критичное —
+  syntax / draft-стек / infra-touch, активный план) и переход в нужный режим. Запускай в начале
+  сессии и после `/clear`.
 - **Потребителю шаблона** — `docs/getting-started.md`: форк → `/init-service` → проектирование
-  стека (`docs/stack/`) → `/de-template` (prune reference-фич) → `/scaffold` → свой бот.
-- **Planning-first.** Любое содержательное изменение идёт через план — секцию в едином
-  `.claude/plans/roadmap.md` (skill `/plan`). Прямая правка — только truly-atomic и багфиксы
-  (`/triage-failure`, RED-first). План переживает `/clear`.
+  флоу и стека → `/de-template` (prune reference-фич) → `/scaffold` → свой бот.
+- **Planning-first.** Любое содержательное изменение идёт через план — файл в `.claude/plans/`
+  (skill `/plan`): план переживает `/clear` и виден команде; фаза программы хаба — `parent: infra:<slug>`.
+  Прямая правка — для truly-atomic и багфиксов (`/triage-failure`, RED-first).
+
+## Место в экосистеме
+
+Форк `<org>/<bot>` — Telegram-бот среди сиблингов `../strategy`, `../infra`, `../backend` и др.
+**Берёт:** дизайн диалогов из `../strategy` (read-only), платформу из `pylibinfra[tgbotkit]`,
+данные и события — у продуктовых бэкендов (HTTP API + NATS). **Отдаёт:** образ
+`<registry>/<org>/bot:vX.Y.Z` (`/release`) и INFRA-HANDOFF; на этом зона репо заканчивается —
+выкатка тега делается только в хабе (`make bump SVC=bot TAG=<v>` в `<org>/infra`). Роль, соседи и
+стыки — `docs/reference/ecosystem.md`.
 
 ## Проектирование первично, код вторичен
 
 Флоу диалога проектируется **до** кода (`/dialog-deep-dive`: окна, переходы, getter-данные,
 состояния виджетов) — это source of truth, код пишется по нему. Если у проекта есть
-стратегия-репо `<org>/strategy` (форк `business-strategy-template`, sibling-checkout рядом),
+стратегия-репо `<org>/strategy` (форк `business-strategy-template`, sibling-checkout `../strategy`),
 дизайн диалогов приходит **оттуда**: слой `docs/projects/<project-slug>/telegram-bot-flow/<surface>/`,
 features-ориентированный — фича `features/<feature>/{dialog.md, window.md, use-case.md}` (диалог + окна
 + use-case'ы бота) плюс сквозные `command.md`/`notification.md` на корне поверхности. Те же понятия, что
@@ -33,8 +47,9 @@ features-ориентированный — фича `features/<feature>/{dialog
 портов — ложится на слой `usecase` фичи), рефы `use-case:<ctx>.<Operation>`/`event:` на домены.
 `/dialog-deep-dive` принимает его stable-артефакты как вход (read-only, в strategy не пишем), интервью
 — только по дырам.
-Платформа/стек — `docs/stack/` (`/stack-deep-dive`). `start`/`profile`/`payments`/`lang`/`notifications` — reference-фичи
-(изучить, потом prune под свой проект через `/de-template`). Роль репо в экосистеме — `docs/reference/ecosystem.md`.
+
+Платформа/стек — `docs/stack/` (`/stack-deep-dive`). `start`/`profile`/`payments`/`lang`/`booking`/
+`notifications` — reference-фичи (изучить, потом prune под свой проект через `/de-template`).
 
 ## Команды
 
@@ -77,22 +92,26 @@ features-ориентированный — фича `features/<feature>/{dialog
 - Комментарии — только WHY (rule `comments`). `dialog_data`/`start_data` — только JSON-примитивы.
 - **Не городить велосипеды**: любой переиспользуемый/инфра-примитив (middleware, runner, новый
   вид рантайма, generic-механика) → **PR в `pylibinfra/tgbotkit`** через `/infra-handoff`, не
-  локальная полукалека. Шаблон несёт **только** бизнес-логику и регистрацию в точки расширения.
+  локальная полукалека. Шаблон несёт только бизнес-логику и регистрацию в точки расширения.
 
 ## Git workflow
 
-- **Conventional Commits** (`scripts/git-hooks/commit-msg`): `feat|fix|refactor|docs|test|chore|meta`,
-  subject ≤72. Линейная история, push в `main` через pre-push → `make check`. Хуки ставит `make setup`.
-- Коммит/пуш — **только по явной просьбе пользователя**.
+- **Conventional Commits** (`scripts/git-hooks/commit-msg`): типы
+  `feat|fix|refactor|docs|test|chore|meta|perf|build|ci|style`, заголовок ≤72. Линейная история,
+  push в `main` через pre-push → `make check`. Хуки ставит `make setup`.
+- Коммит и пуш — только по явной просьбе пользователя: история репо — его решение.
 
 ## Границы
 
 - **Делать:** фичи (гексагон), pkg-клиенты, контент (`.ftl`), регистрация в `app.py`
   (`ExtensionProvider`), тесты, доки.
-- **Спросить:** новые env/секреты/NATS-subject/webhook (INFRA-HANDOFF); новая инфра-механика
-  (это PR в tgbotkit, не правка шаблона); удаление/переименование живого `State` (state-migration).
-- **Никогда:** инфра-проводка в шаблоне; `--no-verify`; коммит `.env`/`*.key`; логи через
-  `print`/`logging`; несериализуемое в `dialog_data`; удаление живого `State` без deprecation.
+- **Спросить:** новые env/секреты/NATS-subject/webhook (INFRA-HANDOFF — это действие хаба);
+  новая инфра-механика (это PR в tgbotkit, не правка шаблона); удаление/переименование живого
+  `State` (state-migration).
+- **Не делать:** инфра-проводку в шаблоне (она живёт в kit'е); `--no-verify` (обходит гейт
+  pre-push); коммит `.env`/`*.key` (секреты); логи через `print`/`logging` (теряются
+  trace-correlation и redact); несериализуемое в `dialog_data` (падает на записи в Redis); удаление
+  живого `State` без deprecation (ломает открытые диалоги пользователей в проде).
 
 ## Forward-only
 

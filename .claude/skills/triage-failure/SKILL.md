@@ -1,35 +1,38 @@
 ---
 name: triage-failure
-description: Red-арм cockpit'а — структурированный разбор красного теста / ruff / mypy / import-linter / startup-smoke (emit_startup / setup_dialogs — коллизии StatesGroup). TDD-first для багфиксов (RED→GREEN). smartdev чейнит сюда на ATTENTION; багфикс идёт сюда, НЕ в plan. Активируй когда юзер пишет "тест падает", "ruff/mypy ругается", "import-linter красный", "бот не стартует", "UnknownIntent/UnknownState", "почему упало", "разбери failure", "вот трейс".
+description: Разбор падения бота до корневой причины — красный тест, ruff, mypy, import-linter, startup-smoke (emit_startup / setup_dialogs, коллизии StatesGroup), бот не стартует, UnknownIntent/UnknownState у пользователей, присланный трейс. Багфикс любого размера ведётся здесь по TDD (RED→GREEN), не через plan; smartdev чейнит сюда на ATTENTION и красный make check.
 ---
 
 # Skill: triage-failure
 
-Дисциплинированный разбор падения. Цель — найти **корневую причину**, не замазать симптом, и зафиксировать инвариант тестом.
+Дисциплинированный разбор падения. Цель — найти **корневую причину**, не замазать симптом, и
+зафиксировать инвариант тестом.
 
-**Red-арм cockpit'а:** `smartdev` переключает сюда, когда `make status`/`make check` дал `ATTENTION:` (red-тест / lint / mypy / import-linter / startup-smoke) или задача — багфикс. Багфикс **никогда не идёт в `plan`** — он идёт сюда, по строгой петле RED→GREEN→REFACTOR. Фича-работа тоже дефолтно тест-first (ведёт `smartdev §4`), но её разбор отказов — здесь.
+**Red-арм cockpit'а:** `smartdev` переключает сюда на `ATTENTION: syntax` из `make status`, на
+красный `make check`/тест (lint, mypy, import-linter, startup-smoke) или когда задача — багфикс.
+Багфикс идёт сюда, а не в `plan`: строгая петля RED→GREEN→REFACTOR. Фича-работа тоже тест-first
+(ведёт `smartdev §4`), но её разбор отказов — здесь.
 
 ## Когда применять
 
-- "Тест X падает"
-- "ruff/mypy выдаёт N ошибок", "import-linter красный"
-- "Бот не стартует" / "`setup_dialogs` падает" / "коллизия StatesGroup"
-- "У юзера `UnknownIntent`/`UnknownState`/`OutdatedIntent`"
-- Юзер кидает stack trace / traceback / error message
+- «Тест X падает», «ruff/mypy выдаёт N ошибок», «import-linter красный».
+- «Бот не стартует» / «`setup_dialogs` падает» / «коллизия StatesGroup».
+- «У юзера `UnknownIntent`/`UnknownState`/`OutdatedIntent`».
+- Юзер кидает stack trace / traceback / error message.
 
-## Когда НЕ применять
+## Когда не применять
 
-- Юзер просит implement новую фичу — это `plan` или прямая работа.
-- Лёгкая опечатка, видно с первой строки — просто чини, не разводи процедуру.
-- Эволюция `StatesGroup` (осознанная) — это `state-migration`, не triage.
+- Юзер просит новую фичу — это `plan` или прямая работа.
+- Опечатка, видная с первой строки, — просто чини.
+- Осознанная эволюция `StatesGroup` — это `state-migration`.
 
 ## Категории падений
 
 | Тип | Признаки | Где смотреть |
 |---|---|---|
-| **import-linter** | `Contracts: ... BROKEN`, нарушение «Слои внутри фичи» / «Независимость фич» / «Чистое ядро» / «Handlers/getters без policy» / «pkg не знает про бот» | `uv run lint-imports --config importlinter.toml` — какой контракт и какая стрелка |
-| **ruff** | `[ruff]`-коды (`T20`, `S`, `TID252`, `ASYNC`, `PT`) | `make lint` / `uv run ruff check .` — топ по коду |
-| **mypy** | `error: ... [code]`, чаще Protocol-несовместимость адаптера и порта | `make typecheck` / `uv run mypy src` |
+| **import-linter** | `Contracts: ... BROKEN` — «Слои внутри фичи» / «Независимость фич» / «Чистое ядро» / «Handlers/getters без policy» / «pkg не знает про бот» / «HTTP-транспорт только в pkg» / «Presentation не ходит в pkg» | `uv run lint-imports --config importlinter.toml` — какой контракт и какая стрелка |
+| **ruff** | `[ruff]`-коды (`T20`, `S`, `TID251` banned-api, `TID252`, `ASYNC`, `PT`) | `make lint` / `uv run ruff check .` — топ по коду |
+| **mypy** | `error: ... [code]`, чаще Protocol-несовместимость pkg-клиента/адаптера и порта | `make typecheck` / `uv run mypy src tests` |
 | **Unit test** | `FAILED tests/unit/... assert` | `uv run pytest tests/unit/test_X.py -q` |
 | **Flow / dialog test** | падает прогон `BotClient` (текст/клавиатура не та) | `uv run pytest tests/flows/test_X.py -q` |
 | **Startup-smoke** | `setup_dialogs`/`emit_startup` кидает на сборке — **дублирующиеся State, окно без `state=`, два Dialog на одну StatesGroup** | `tests/flows/test_composition.py` — `test_container_assembles_and_dialogs_collision_free` |
@@ -37,111 +40,104 @@ description: Red-арм cockpit'а — структурированный раз
 | **Storage-serialization** | падение при записи в Redis: `datetime`/`Decimal`/объект не JSON | что кладётся в `dialog_data`/`widget_data`/`start_data` |
 | **Integration** | падает только под `make test-integration` (Docker) | testcontainers redis/nats, реальный StreamBus |
 
-## Шаги
+## 1. Воспроизвести минимально
 
-### 1. Воспроизвести минимально
+Выясни (у юзера или сам): команда воспроизведения; локально, только под Docker
+(`make test-integration`) или только в проде; ветка/коммит; когда последний раз работало. Гоняй
+точечно, не `make test` на всём:
 
-Спроси или посмотри сам:
-- Как воспроизводится? Команда?
-- Локально или только в CI?
-- На какой ветке / коммите? Когда последний раз работало?
-
-Гоняй точечно, не `make test` на всём:
 ```bash
 uv run pytest tests/unit/test_payments.py -q
 uv run pytest tests/flows/test_profile_flow.py -q -x
 uv run pytest -k "collision" -q          # startup-smoke композиции
 ```
 
-### 2. Прочитать сообщение целиком
+## 2. TDD для багфиксов
 
-Не первую строку — **целиком**. В Python traceback самое полезное — внизу (последний кадр + тип исключения), у pytest — блок `assert` с diff `expected`/`got`, у import-linter — какая стрелка нарушила какой контракт. Читай до конца.
-
-### 3. Сформулировать гипотезу
-
-Одно проверяемое предложение «X падает потому что Y». Примеры:
-- "test_profile_flow падает потому что getter не отдаёт ключ `status`, а `Format` его требует → `KeyError` при рендере."
-- "import-linter красный потому что `usecase.py` импортит `httpx` напрямую — HTTP живёт в pkg-клиенте (`pkg/http_client/`), ядру положены только Protocol-порты (контракт «Чистое ядро»)."
-- "mypy ругается потому что `ProfileAPI.rename_user` не совпадает сигнатурой с `ports.BackendGateway` — pkg-клиент структурно не удовлетворяет порту, байнд в provider.py не соберётся."
-- "`setup_dialogs` падает потому что два окна объявили `state=ProfileSG.VIEW` (дубль) либо State объявлен по месту вместо `platform/dialogs/states.py`."
-
-Несколько гипотез — выбирай самую дешёвую в проверке.
-
-### 4. TDD для багфиксов (обязательно)
-
-Если это **баг** (а не lint/mypy/import-linter/drift):
+Если это **баг** (а не lint/mypy/import-linter/drift), порядок важен:
 
 1. **Напиши падающий тест**, воспроизводящий баг.
-   - unit для policy/views/валидатора; flow (`BotClient`+`MockMessageManager`+`JsonMemoryStorage`) для сценария окна.
-   - Тест падает **по той же причине**, что и прод-баг — иначе тестируешь другое.
-   - Мокай **порт** (фейк порта в unit-тесте usecase) или границу бэкенда (`FakeApiClient` из `tests/_fakes/backend.py` в flow-тестах), не транспорт; httpx/respx — только в `tests/pkg/`. Кнопки локай по `callback_data`/тексту.
-2. `uv run pytest tests/.../test_new.py -q` → red. Подтверди, что red — твой red, не тест-инфра.
+   - unit для policy/views/валидатора; flow (`BotClient`+`MockMessageManager`+`JsonMemoryStorage`)
+     для сценария окна.
+   - Тест падает **по той же причине**, что и прод-баг, — иначе тестируешь другое.
+   - Мокай **порт** (фейк порта в unit-тесте usecase) или границу бэкенда (`FakeApiClient` из
+     `tests/_fakes/backend.py` в flow-тестах), не транспорт; httpx/respx — только в `tests/pkg/`.
+     Кнопки локай по `callback_data`/тексту.
+2. `uv run pytest tests/.../test_new.py -q` → red. Подтверди, что red — твой, а не тест-инфра.
 3. **Только теперь** правь продакшен-код.
 4. `uv run pytest tests/.../test_new.py -q` → green.
 5. `make test` → весь набор green (не сломал соседей).
-6. Коммит: оба файла одним `fix(<scope>): <one-liner>`.
+6. Коммит — когда юзер попросит: тест и фикс одним `fix(<scope>): <one-liner>`.
 
-### 5. Не-баг-флоу (lint / mypy / import-linter / startup-smoke)
+## 3. Не-баг-флоу (lint / mypy / import-linter / startup-smoke)
 
 | Случай | Действие |
 |---|---|
-| **import-linter «Чистое ядро»** | `usecase`/`policy`/`state`/`dto` импортит `httpx`/`aiogram`/`aiogram_dialog`/`redis`/свой `infra/`. HTTP — в pkg-клиент (`pkg/http_client/`), ядру — Protocol-порты (wire-модели `bot.pkg.*` и `pylibinfra.httpclient` разрешены). |
+| **import-linter «Чистое ядро»** | `usecase`/`policy`/`state`/`dto`/`ports`/`errors`/`views`/`adapters` импортит `httpx`/`aiogram`/`aiogram_dialog`/`redis`/свой `infra/`. HTTP — в pkg-клиент (`pkg/http_client/`), ядру — Protocol-порты; wire-модели и typed-ошибки `bot.pkg.http_client.*` ядру разрешены, `pylibinfra.httpclient` напрямую — нет (ruff TID251). |
 | **import-linter «Слои внутри фичи»** | стрелка «вверх» (напр. `usecase → handlers`) или `getters`↔`handlers` импортят друг друга. Они один слой — общее в `views`/`state`. |
 | **import-linter «Независимость фич»** | прямой импорт другой фичи из ядра/presentation. Только `adapters.py`/`provider.py` (порт + адаптер — `scaffold` backend-port). |
 | **import-linter «Handlers/getters без policy»** | handler/getter зовёт `policy` напрямую. Доменное решение — метод usecase; handler получает результат-данные и мапит на экран/текст. |
 | **import-linter «pkg не знает про бот»** | модуль в `bot.pkg` импортит `bot.features`/`bot.platform`/`aiogram`. pkg — переиспользуемые клиенты; бизнес — в фиче. |
-| **ruff T20 / banned-api** | `print`/`logging` напрямую → `pylibinfra.logkit.Logger` (в usecase инжектится, см. profile). В тестах T20 выключен. |
+| **import-linter «HTTP-транспорт только в pkg» / «Presentation не ходит в pkg»** | `httpx` в фиче/платформе или `dialogs`/`getters`/`handlers` импортят `bot.pkg`. Данные — через usecase → порт → pkg-клиент. |
+| **ruff T20 / banned-api** | `print`/`logging` напрямую → `pylibinfra.logkit.Logger` (в usecase инжектится, см. profile); `pylibinfra.httpclient` вне pkg → `bot.pkg.http_client`. В тестах T20 и TID251 выключены. |
 | **ruff S (bandit)** | подозрительный паттерн; если оправдан — `# noqa: S<NNN>  # <причина>`, не глуши скопом. |
 | **mypy Protocol-несовместимость** | pkg-клиент/адаптер не совпадает сигнатурой с портом (`ports.py`). Выровняй имена/типы методов; mypy strict проверяет структурно на байнде в `provider.py`. |
 | **startup-smoke (`setup_dialogs`/`emit_startup`)** | коллизия/пропуск State: дубль `state=` на два окна; State объявлен по месту, а не в `platform/dialogs/states.py`; два `Dialog` на одну StatesGroup; окно без `state=`. Чини в `states.py`+`dialogs.py`, прогони `pytest -k collision`. Удалил живой State → это `state-migration`, верни deprecation. |
 | **storage-serialization** | в `dialog_data`/`widget_data`/`start_data` попал не-JSON (`datetime`→ISO-строка, pydantic→`model_dump(mode="json")`). `JsonMemoryStorage` в flow-тестах ловит это — добавь тест. |
 
-### 6. Stale-callback у пользователя (`UnknownIntent`/`UnknownState`/`OutdatedIntent`)
+Типичная цепочка причин для flow-теста: getter не отдаёт ключ, который читает `Format` → `KeyError`
+при рендере (rule `dialog-architecture`).
 
-Это runtime-симптом, не падение CI. Две причины:
-- **Норма после рестарта/TTL**: kit ловит и зовёт `ErrorUX` (`platform/dialogs/errors.py`) → подсказка `/start`. Проверь, что `AppErrorUX.on_unknown_intent`/`on_unknown_state` отвечают на callback (гасят «часики») и не трогают сообщение (могло быть удалено).
-- **Регресс от деплоя**: вырезали/переименовали живой State → у юзеров в открытых диалогах нет на что приземлиться. Это `state-migration` (deprecation вместо удаления) — верни State, пометь deprecated.
+## 4. Stale-callback у пользователя (`UnknownIntent`/`UnknownState`/`OutdatedIntent`)
 
-### 7. Граф переходов как диагностика (preview-graph)
+Это runtime-симптом, не красный гейт. Две причины:
+- **Норма после рестарта/TTL**: kit ловит и зовёт `ErrorUX` (`platform/dialogs/errors.py`) →
+  подсказка `/start`. Проверь, что `AppErrorUX.on_unknown_intent`/`on_unknown_state` отвечают на
+  callback (гасят «часики») и не трогают сообщение (могло быть удалено).
+- **Регресс от деплоя**: вырезали/переименовали живой State → у юзеров в открытых диалогах нет на
+  что приземлиться. Это `state-migration` (deprecation вместо удаления) — верни State, пометь
+  deprecated. Прод-логи — в хабе: `make logs SVC=bot` в `<org>/infra`.
 
-Если падение про навигацию/переходы (не туда ведёт кнопка, тупик, недостижимое окно) — построй граф через `preview-flow` (`render_transitions`) и посмотри глазами: лишнее ребро, недостижимый State, цикл без выхода. Требует `aiogram_dialog[tools]`+graphviz (см. skill `preview-flow`).
+## 5. Граф переходов как диагностика
 
-### 8. Если корневая причина в инфре (`tgbotkit`/kit)
+Падение про навигацию (не туда ведёт кнопка, тупик, недостижимое окно) — построй граф через
+`preview-flow` (`render_transitions`) и посмотри глазами: лишнее ребро, недостижимый State, цикл без
+выхода. Требует `aiogram_dialog[tools]` + graphviz (см. skill `preview-flow`).
 
-- Баг в `tgbotkit`/другом kit'е `pylibinfra` → не лечи workaround'ом у себя без обсуждения. Скажи юзеру, предложи временный shim с `# TODO` + reference; фикс инфры — PR в `pylibinfra` через `infra-handoff`.
-- Не помечай flaky-тест `@pytest.mark.skip` — проверь, не глобальное ли state-загрязнение (module-level `Dialog`-синглтоны детачатся `_parent_router = None` между тестами — см. `tests/_fakes/harness.py`).
+## 6. Корневая причина в инфре (`tgbotkit`/kit)
 
-### 9. Когда застрял
+- Баг в `tgbotkit`/другом kit'е `pylibinfra` → не лечи workaround'ом у себя без обсуждения. Скажи
+  юзеру, предложи временный shim с `# TODO` + reference; фикс инфры — PR в `pylibinfra` через
+  `infra-handoff`.
+- Flaky-тест не глуши `@pytest.mark.skip` — проверь, не глобальное ли state-загрязнение
+  (module-level `Dialog`-синглтоны детачатся `_parent_router = None` между тестами — см.
+  `tests/_fakes/harness.py`).
 
-Признаки: 2+ попытки не помогли; каждая ломает другое; гипотеза не сужается.
+## 7. Когда застрял
 
-Действия:
-1. Откатись (`git stash`) к чистому red-state.
-2. Сформулируй вслух юзеру: «Думаю X, но проверка через Y даёт Z. Не хватает Q.»
-3. Делегируй subagent `explorer`: «найди все места, где регистрируется/читается `<State>`/`<порт>`» — вернёт сжатую сводку.
-4. Если всё равно — `plan` skill: TDD-research-spike.
+После двух неудачных попыток или когда каждая правка ломает другое — не наращивай патчи. Откати
+свои эксперименты до состояния, где воспроизводится исходный red (чужие незакоммиченные изменения
+не трогай), и скажи юзеру: гипотеза, чем её проверял, что получилось и чего не хватает. Причина всё
+ещё неясна — research-spike через `plan`.
 
-### 10. Верификация фикса
+## 8. Верификация фикса
 
 ```bash
 uv run pytest tests/.../test_X.py -q
 make lint        # ruff + import-linter
 make typecheck
 ```
-Перед коммитом — `make check`.
 
-## Что искать дополнительно
-
-- Не пропущен ли тест на смежный сценарий (edge case B рядом с A)?
-- Не баг ли это паттерна (если в одной фиче getter без дефолта ключа — нет ли в других)?
-- Стоит ли добавить инвариант в `policy`-тест / startup-smoke?
+Перед коммитом — `make check`. Тот же дефект нашёлся в соседних фичах — скажи юзеру; фикс —
+отдельной задачей, не в этом коммите.
 
 ## Anti-patterns
 
-- ❌ «Перепиши тест чтобы проходил» — это сокрытие, не фикс.
+- ❌ «Перепиши тест, чтобы проходил» — это сокрытие, не фикс.
 - ❌ `@pytest.mark.skip` для flaky — корневая причина не уйдёт, всплывёт в проде.
-- ❌ `--no-verify` чтобы запушить красное — заблокировано хуком, и правильно.
-- ❌ `# type: ignore` / `# noqa` без причины-комментария вместо реального фикса.
-- ❌ Фикс без теста для баг-фикса. TDD не опциональна для багов.
+- ❌ `--no-verify`, чтобы запушить красное: его блокирует `permissions.deny`, а гейт pre-push
+  существует ровно для этого.
+- ❌ `# type: ignore` / `# noqa` без кода правила и причины вместо реального фикса.
+- ❌ Фикс бага без RED-теста.
 - ❌ Удалить живой State, чтобы «убрать» `UnknownState` — сломаешь больше. → `state-migration`.
-- ❌ Большой «while we're at it» при фиксе бага. Баг-фикс = маленький коммит. Большое — отдельный план.
+- ❌ Большой «while we're at it» при фиксе бага. Баг-фикс = маленький коммит; большое — отдельный план.

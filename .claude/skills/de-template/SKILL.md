@@ -1,6 +1,6 @@
 ---
 name: de-template
-description: Развернуть форк telegram-bot-template в самостоятельный проект по stable-артефактам docs/stack — имя проекта/пакета, README, .env.example, app.py/config.py wiring, prune reference-фич (start/profile/payments/lang/notifications). Активируй когда юзер форкнул шаблон и говорит "/de-template", "разверни фундамент", "де-темплейтизируй", "убери шаблонную мету", "сделай из шаблона свой проект", или когда init-service дошёл до развёртывания (стек спроектирован и stable). Движок skill-only: и механика, и wiring — reviewable edits под этой процедурой. НЕ запускать на каноническом репозитории шаблона.
+description: Развернуть форк telegram-bot-template в самостоятельный проект по stable-артефактам docs/stack — имя проекта/пакета, README, .env.example, wiring app.py/config.py, prune reference-фич (start/profile/booking/payments/lang/notifications). Используй, когда юзер форкнул шаблон и хочет развернуть фундамент или убрать шаблонную мету (/de-template), или когда init-service дошёл до развёртывания (стек спроектирован и stable). Движок skill-only — и механика, и wiring идут reviewable-правками под этой процедурой. На каноническом репозитории шаблона не запускается — это его уничтожит.
 ---
 
 # Skill: de-template (движок развёртывания)
@@ -12,13 +12,13 @@ description: Развернуть форк telegram-bot-template в самост
 ## Когда применять
 
 - "/de-template" / "разверни фундамент" / "сделай из шаблона свой проект"
-- `init-service` дошёл до развёртывания (стек sproectирован, валидатор зелёный)
+- `init-service` дошёл до развёртывания (стек спроектирован, валидатор зелёный)
 
-## Когда НЕ применять
+## Когда не применять
 
 - Стек ещё не `stable` — сначала `stack-deep-dive` (gate ниже).
 - Проект уже де-темплейтизирован (своё имя проекта, reference-фичи удалены) — обычный день через `/smartdev`.
-- **Канонический репозиторий шаблона** — никогда (guard ниже). Только форк/копия.
+- **Канонический репозиторий шаблона** — только форк/копия (guard ниже): на самом шаблоне движок его уничтожит.
 
 ## Gate (проверить ДО любых правок)
 
@@ -47,15 +47,20 @@ description: Развернуть форк telegram-bot-template в самост
 > Шаблон зависит от `pylibinfra[tgbotkit]` — **эту зависимость не трогаем** (она остаётся). Меняется только идентичность форка: `[project] name`, его метаданные и (если в `docs/stack/service.md § Generates` решено) внутренний namespace `bot` → свой.
 
 - `[project] name` и `description` в `pyproject.toml` — из `docs/stack/service.md`.
-- Если решено переименовать пакет `src/bot/` → `src/<pkg>/` (опционально; многие форки оставляют `bot` как внутренний namespace): переименуй каталог и перепиши импорты одной заменой:
+- Если решено переименовать пакет `src/bot/` → `src/<pkg>/` (опционально; многие форки оставляют `bot` как внутренний namespace): переименуй каталог и перепиши **только строки импорта** — в коде есть и переменные `bot` (aiogram `Bot`: `bot.send_invoice(...)`, тестовый фейк `bot.invoices`), их замена по `bot.` сломает код:
   ```bash
   OLD=bot
   NEW=<package из docs/stack/service.md>   # только если переименовываем
   git mv src/$OLD src/$NEW
-  git grep -lF "$OLD." -- 'src' 'tests' | xargs sed -i "s#\b$OLD\.#$NEW.#g"
-  # importlinter.toml: root_package = "bot" → "<NEW>"; containers/source_modules с bot.* → <NEW>.*
+  git grep -lE "^\s*(from|import) $OLD(\.|\s|$)" -- src tests \
+    | xargs sed -i -E "s/^(\s*)(from|import) $OLD(\.|\s|$)/\1\2 $NEW\3/"
+  # остальные ссылки на пакет в конфигах — найди и поправь руками:
+  git grep -nE "src/$OLD\b|-m $OLD\b|\"$OLD\"|\b$OLD\.(features|pkg|platform|shared|app|config)\b" \
+    -- importlinter.toml pyproject.toml Makefile Dockerfile scripts .claude/settings.json
+  grep -n "src/$OLD" .claude/rules/*.md   # paths: правил
   ```
-- Проверь `uv sync` и `uv run python -c "import <pkg>"` — импорты резолвятся.
+  Это `importlinter.toml` (`root_package`, `bot.*` в контрактах), `pyproject.toml` (`packages`, `known-first-party`, per-file-ignores, `coverage` `source`), `Makefile` (`--cov=src/bot`, `python -m bot`), `Dockerfile` (`ENTRYPOINT`), `scripts/status.sh` (`INFRA_RE`), `.claude/settings.json` и `paths:` в `.claude/rules/*` (без них правила перестанут грузиться).
+- Проверь `uv sync` и `uv run python -c "import <pkg>"` — импорты резолвятся; затем `make check`.
 
 ### A.2 README-шапка
 
@@ -63,18 +68,18 @@ description: Развернуть форк telegram-bot-template в самост
 
 ### A.3 `.env.example`
 
-Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `HTTPCLIENT_BACKENDS` при нескольких бэкендах), `APP_ADMIN_IDS`, `BOT_I18N_*`, `LOG_*`, `HTTP_ADDR` (health-порт). Секреты — только имена ключей (значения не коммить; rule `infra-impact`).
+Из `docs/stack/config.md § Generates` (required+optional env с дефолтами) приведи `.env.example` к фактическому контракту проекта: `BOT_TOKEN`, `BOT_MODE`, `BOT_WEBHOOK_*` (если webhook), `REDIS_URL`, `NATS_URL`, `HTTPCLIENT_BASE_URL` (+ `HTTPCLIENT_BACKENDS` при нескольких бэкендах), `APP_ADMIN_IDS`, `BOT_I18N_*`, `LOG_*`, `HTTP_ADDR` (health-порт). Секреты — только имена ключей (значения не коммить; rule `infra-impact`).
 
 ### A.4 Strip шаблонной меты
 
 - Удали `docs/getting-started.md` ([META] «как форкнуть шаблон»).
 - `docs/contributing.md` ([META] про `.claude`-систему) — **оставь** (система наследуется форком); переформулируй «шаблон» → имя проекта при желании.
-- Сбрось `.claude/plans/roadmap.md` к пустому fork-start (шапка + пустые `## Active`/`## Backlog`).
-- `docs/reference/*` (architecture/dialog-mapping/release/ecosystem) — **оставь** (наследуется форком; reference переезжает в проект); `getting-started.md` удаляется, см. выше.
+- `.claude/plans/` — форк стартует без планов шаблона: только `.claude/plans/backlog.md` с `_пусто_`.
+- `docs/reference/*` (architecture/dialog-mapping/observability/release/ecosystem) — **оставь** (наследуется форком; reference переезжает в проект); `getting-started.md` удаляется, см. выше.
 
 ### A.5 Prune reference-фич
 
-`start`/`profile`/`payments`/`lang`/`notifications` — учебные образцы. Удаляются по полному чеклисту — см. **`references/prune.md`** (что оставить почти всегда: `start` как корневой ROOT и `lang`, если нужен i18n). Делай **после** того как свои фичи спроектированы (флоу через `/dialog-deep-dive`) и сгенерированы (`scaffold feature`) — иначе теряешь живой образец гексагона.
+`start`/`profile`/`booking`/`payments`/`lang`/`notifications` — учебные образцы. Удаляются по полному чеклисту — см. **`references/prune.md`** (что оставить почти всегда: `start` как корневой ROOT и `lang`, если нужен i18n). Делай **после** того как свои фичи спроектированы (флоу через `/dialog-deep-dive`) и сгенерированы (`scaffold feature`) — иначе теряешь живой образец гексагона.
 
 ## Phase B — doc-driven wiring
 

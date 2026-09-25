@@ -76,8 +76,8 @@ status: ## сводка состояния репо (ветка/drift/план/�
 validate-stack-docs: ## проверить целостность docs/stack/* (вход de-template)
 	@bash scripts/validate-stack-docs.sh
 
-plan-check: ## структура единого плана .claude/plans/roadmap.md
-	@bash scripts/validate-plan.sh
+plan-check: ## формат планов .claude/plans/ (A=--summary — сводка)
+	@bash scripts/validate-plan.sh $(A)
 
 ##@ RELEASE
 release: ## release VERSION=vX.Y.Z — собрать+запушить образ + INFRA-HANDOFF

@@ -53,7 +53,7 @@ FSM-визарды, контент). Тогда HTTP-слой — мёртвый
 1. **Backend-фичи** (`profile`/`payments`/`booking` — у всех порт байндится на pkg-клиент) — прунь (чеклист выше) или перепиши порт на `infra/`-store.
 2. **`src/bot/pkg/http_client/`** целиком (`git rm -r`) — клиенты, errors/wire/idempotency/api, provider.
 3. **`app.py`** — убери `ApiClientsProvider()` и `http_client.Provider()` (+ импорты).
-4. **`config.py`** — убери `HttpConfig`/`BackendsConfig`/импорт `CORE_BACKEND` (нет `HTTPCLIENT_*`-ручек).
+4. **`config.py`** — убери провайд `backends()` (`httpclient.BackendsConfig`), `_core_backend()` и импорт `CORE_BACKEND` (нет `HTTPCLIENT_*`-ручек). `http()` (`httpkit.Config`) остаётся: это health-порт `/health`/`/ready`, не клиент бэкенда.
 5. **`BotIdentity`** (`platform/identity/identity.py`) — выкинь поле `backend_user_id` (оно жило только ради бэкенда); в `IdentityProvider` убери `_resolve_backend_id`/чтение `backend_link_key`. Останутся `tg_id` + `role`.
 6. **`platform/links.py`** — убери `backend_link_key`/`BACKEND_LINK_PREFIX`, если их писал только онбординг под бэкенд.
 7. **Тесты/фейки** — `tests/pkg/`, `tests/_fakes/backend.py` (`FakeApiClient`), pkg-провайды и `make_container(..., backend=)` в `tests/_fakes/harness.py`.

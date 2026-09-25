@@ -9,7 +9,7 @@ status: draft
 
 ## pylibinfra pin
 <Единственная рантайм-зависимость: `pylibinfra[tgbotkit]`, пин по git-ref в `[tool.uv.sources]`
-(`rev=<commit>`; финально — релиз-тег). Ноль прямых инфра-пинов — вся инфра приходит extra `[tgbotkit]`
+(`rev = "vX.Y.Z"` — релиз-тег `pylibinfra`). Ноль прямых инфра-пинов — вся инфра приходит extra `[tgbotkit]`
 (tgbotkit + aiogram + aiogram_dialog + fluent.runtime) + транзитивом (dishka/redis/httpx/otel/fastapi/nats).>
 
 ## Kits used

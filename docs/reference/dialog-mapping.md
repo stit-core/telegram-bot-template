@@ -23,7 +23,7 @@
 | `features/<feature>/window.md` (H2-секция на окно: `state`, `message`, `widgets`, `getter`, `errors`) | `Window` (`state`); текст → `Format`/`I18NFormat` + `.ftl`; виджеты (`button`/`url`/`select`/`multiselect`/`text-input`/`calendar`) → `kbd`/`TextInput`/`Calendar`; getter-ключи (source + fallback); `errors` → `ErrorUX`/getter-дефолты |
 | `features/<feature>/use-case.md` (H2-секция на UC: `operation`, Actor/Inputs/Outputs/Dependencies/Steps/Errors) | метод-оркестратор `usecase.py` фичи (имя ← `operation`); `Inputs` → аргументы handler'а/getter'а; `Dependencies` `use-case:<ctx>.<Operation>` → метод порта (`ports.py`) → pkg-клиент; `Dependencies` `dialog-data` → чтение/запись state; `Outputs`/`Errors` → sentinel-исходы, по которым handler/getter маршрутизируют (`when`) |
 | `command.md` (`command`, `starts`, `stack`, `payload`) | `CommandSpec` (`CommandBundle`); `stack: reset` → `RESET_STACK`; `payload` → `start_data` |
-| `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`/`BgManager`); `trigger: event:…` → subject; идемпотентность |
+| `notification.md` (`trigger`, `to`, `content`, `idempotency`) | NATS-подписчик (`NotifierBundle`, доставка через `Delivery`); `trigger: event:…` → subject; идемпотентность |
 
 `widget.action`/`getter.source` = `use-case:<uc-slug>` — **use-case бота** этой фичи (реф **без точки**)
 → метод `usecase` фичи (оркестратор). Сам bot UC в `Dependencies` ссылается на **доменный** use-case
@@ -46,7 +46,8 @@ subject подписчика. `states-group`/`state`/`operation`/`id` видже
 | Окно сценария | `Window(...)` в `dialogs.py`, `state=<SG>.<STATE>` |
 | Состояние окна | `State()` в `StatesGroup` (`platform/dialogs/states.py`) |
 | Статический текст/подпись | `I18NFormat("<key>")` — перевод из `locales/<lang>/<feature>.ftl` |
-| Динамический текст | `Format("{name}")` — поле из getter-dict |
+| Текст со статикой и данными | `I18NFormat("<key>")` — значения getter'а приходят в `.ftl` аргументами `{ $name }` (как `booking-confirm`) |
+| Только данные, без переводимого текста | `Format("{name}")` — поле из getter-dict |
 | Кнопки/раскладка | виджеты `kbd` (`Row`/`Column`/`SwitchTo`/`Cancel`/`Back`/`Button`/`Start`) |
 | Ввод значения | `TextInput(id=…, type_factory=…, on_success=…, on_error=…)` |
 | Данные окна | `getter=getters.<name>_getter` |
@@ -101,7 +102,7 @@ usecase и зовёт нужный `switch_to`.
 | Успешный ввод | `TextInput(on_success=handlers.on_…)` — получает `value` |
 | Ошибка ввода (`type_factory`) | `TextInput(on_error=handlers.on_…)` |
 | Мутация | handler дёргает `usecase` (не policy/pkg напрямую); данные из аргумента виджета, не из getter |
-| Ошибка usecase | ловим, текст через `views.error_text`, показываем без падения окна |
+| Ошибка usecase | ловим, `.ftl`-ключ из `views.error_text` → `render(fmt, ключ)` (`bot.shared.i18n`), показываем без падения окна |
 | Навигация после реакции | `manager.switch_to` / `manager.done` / `manager.start` |
 | Вход по команде | dispatcher-level handler, `@inject` из `dishka.integrations.aiogram`; `dialog_manager` — kwarg |
 
@@ -159,7 +160,8 @@ async def profile_getter(
     try:
         view = await uc.view(identity)  # usecase, не pkg-клиент
     except errors.ProfileError as exc:
-        return {"name": "—", "email": "", "badge": "", "status": views.error_text(exc)}  # мягко
+        status = render(kwargs.get(I18N_FORMAT_KEY), views.error_text(exc))  # .ftl-ключ → текст
+        return {"name": "—", "email": "", "badge": "", "status": status}  # мягко
     data = views.to_window(view)
     data["status"] = ""
     return data  # все ключи Format заполнены
@@ -179,7 +181,8 @@ async def on_save_name(
     try:
         await uc.rename(identity, value)  # мутация ← value виджета
     except errors.ProfileError as exc:
-        await message.answer(views.error_text(exc))  # ошибка → текст, окно не падает
+        fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+        await message.answer(render(fmt, views.error_text(exc)))  # ошибка → текст, окно не падает
         return
     await manager.switch_to(ProfileSG.VIEW)  # успех → назад (перерисует getter)
 ```

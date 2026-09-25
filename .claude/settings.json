@@ -59,9 +59,7 @@
       "Edit(.env)",
       "Edit(.env.local)",
       "Edit(uv.lock)",
-      "Write(**/.claude/projects/**/memory/**)",
-      "Edit(**/.claude/projects/**/memory/**)",
-      "MultiEdit(**/.claude/projects/**/memory/**)"
+      "Edit(**/.claude/projects/**/memory/**)"
     ]
   }
 }

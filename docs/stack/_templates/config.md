@@ -17,8 +17,8 @@ status: draft
 (health-порт). Источник дефолтов — kit-конфиги; заданная пустая переменная = дефолт.>
 
 ## Secrets
-<Что секрет (`BOT_TOKEN`, токены бэкендов). На проде секреты приходят через env (деплой-репо
-`<org>/infra`); в `.env.example` — только имена ключей, не значения (rule `infra-impact`).>
+<Что секрет (`BOT_TOKEN`, токены бэкендов). На проде секреты приходят через env из `.env` хаба
+`<org>/infra` на VPS; в `.env.example` — только имена ключей, не значения (rule `infra-impact`).>
 
 ## *Config inventory
 <Какие `*Config` собирает `AppConfigProvider` (асимметрия dishka — kit'ы не provide'ят свой Config):

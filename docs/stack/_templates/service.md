@@ -20,8 +20,9 @@ status: draft
 build-arg) и в стартовый лог. Что логируется на старте (`"starting" service/version/commit`).>
 
 ## Image
-<Один образ `<host>/<org>/bot:<vX.Y.Z>` (бот stateless, migrate-образа нет; notifications/jobs — в
-том же процессе). Что пушится, куда (registry из ecosystem).>
+<Один образ `<registry>/<org>/bot:<vX.Y.Z>` (бот stateless, migrate-образа нет; notifications/jobs — в
+том же процессе). Registry и орга — из `git remote origin`, override env `REGISTRY`
+(`docs/reference/ecosystem.md`).>
 
 ## Generates
 <Что de-template родит из этого артефакта:

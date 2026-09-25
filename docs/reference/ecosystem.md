@@ -1,56 +1,73 @@
 # Ecosystem
 
-Место шаблона в экосистеме stit: **6 форкаемых шаблонов** `stit-core/` (`corp-infra-template`,
-`project-infra-template-compose`, `go-backend-template`, `spa-frontend-template`,
-`business-strategy-template`, `telegram-bot-template`) + 3 общие библиотеки: `stit-core/pylibinfra`
-(kit'ы, `tgbotkit` — рантайм этого шаблона), `stit-core/golibinfra` (Go-kits бэкендов),
-`stit-core/ui-lib` (`@stit/ui`, фронт). Корп control-plane — репо `corp-infra-template` (managed =
-инстанс на `*.stit.tech`; self-hosted = форк `<org>/infra`). Канон контрактов и операционной модели
-агентов — `corp-infra-template/docs/ecosystem.md`. Этот шаблон — **фронтенд-сервис**: чистая
-бизнес-логика на `aiogram_dialog` поверх `pylibinfra[tgbotkit]`.
+Шаблоны `stit-core/*` форкаются в репо клиентской орги `<org>/*`; форки одной орги лежат рядом
+sibling-checkout'ами (`../<name>`). Этот шаблон — `telegram-bot-template` → форк `<org>/<bot>`:
+Telegram-бот на `aiogram` + `aiogram_dialog` поверх `pylibinfra[tgbotkit]`. Бот — тонкий клиент
+продуктовых бэкендов: бизнес-данные и логика живут там (HTTP API + события NATS), сам бот владеет
+только своим state в Redis (FSM/диалоги/dedup/identity-link).
 
-## Роль
+Канон карты и операционного флоу — `docs/reference/ecosystem.md` инфра-репо (`<org>/infra`, форк
+`project-infra-template-compose`). Здесь — роль этого репо и его стыки с соседями.
 
-Шаблон Telegram-бота. Форкается в `<org>/<bot>`; разработчик собирает + пушит образ
-`git.${DOMAIN}/<org>/bot:<vX.Y.Z>`. Деплоем **не занимается** — handoff в `<org>/infra`.
+## Соседи
 
-```
-   <org>/strategy (← business-strategy-template)  — design-time SoT: дизайн диалогов бота
-        │ side-input: telegram-bot-flow/<surface>/ читают /dialog-deep-dive + /scaffold (рантайм не зависит)
-        ▼
-   ЭТОТ РЕПО ◄──контракт (registry образов)── corp-infra-template (corp control plane)
-        │ ──build+push image──► git.${DOMAIN}/<org>/bot
-        │                                   │
-   pylibinfra (kit'ы)                       ▼
-        │                     <org>/infra (← project-infra-template-compose) ──deploy──► VPS
-        ▼
-   бэкенды продукта (HTTP API + события NATS) — источник всей бизнес-логики
-```
+| Шаблон → форк | Роль |
+|---|---|
+| `business-strategy-template` → `<org>/strategy` | design-time source of truth: бизнес, AJTBD, SWOT, карта гипотез, продукты (в т.ч. слой `telegram-bot-flow` — дизайн диалогов бота), ИТ-периметр |
+| `project-infra-template-compose` → `<org>/infra` | runtime проекта (docker-compose на VPS) и операционный хаб: общий план, рассылка агентов по сиблингам, выкатка тегов (`make bump`) |
+| `go-backend-template` → `<org>/backend` | Go-сервис — обычно продуктовый бэкенд бота |
+| `spa-frontend-template` → `<org>/frontend` | React SPA (кабинет, всё за логином) |
+| `ssr-frontend-template` → `<org>/site` | Astro SSR-сайт (индексируемый контент) |
+| `telegram-bot-template` → `<org>/<bot>` | **этот репо** — Telegram-бот (Python, aiogram) |
+| `mobile-template` → `<org>/mobile` | KMP-приложение Android + iOS; релиз — в магазины |
 
-Бот — это фронтенд: бизнес-данные/логика живут на бэкендах (HTTP API через `pkg/http_client` +
-события NATS через notifications). Бот владеет только своим state в Redis (FSM/диалоги/dedup/
-identity-link).
+Библиотеки: `pylibinfra` — Python-киты, рантайм этого бота (`tgbotkit` и соседние киты);
+`golibinfra` — Go-киты Go-сервисов.
 
-## Зависит от / используется
+## Как сюда приходят агенты
 
-- **Зависит от:** `stit-core/pylibinfra` — единственная рантайм-зависимость (extra `[tgbotkit]`:
-  tgbotkit + aiogram + aiogram_dialog + fluent.runtime; остальная инфра — dishka/redis/httpx/otel/
-  fastapi/nats — транзитивом). Ноль прямых инфра-пинов. Пинится по git-ref (`[tool.uv.sources]`),
-  как go-сервис на `go.mod`-версию.
-- **Зависит от:** `corp-infra-template` (контракт registry образов);
-  `git.${DOMAIN}` (push images); продуктовые бэкенды (`HTTPCLIENT_*`, NATS-stream).
-- **Используется:** `<org>/infra` (форк `project-infra-template-compose`) — пуллит образ; rollout
-  тега — `make bump SVC=bot TAG=<tag>` там (правит `BOT_TAG` в `.env` на VPS + force-recreate).
-  `<org>/infra` — операционный хаб проекта: задачи входят туда, агенты приходят сюда и работают
-  обвязкой этого репо (`make check` — гейт); прямой заход разработчика сюда равно нормален.
-- **Зависит (design-time) от:** `<org>/strategy` (форк `business-strategy-template`) — слой
-  `telegram-bot-flow/<surface>/`. `/dialog-deep-dive` и `/scaffold` читают его при разработке;
-  рантайм-образ от стратегии не зависит (это source-of-truth проектирования, не deploy-звено).
+- **Из хаба `<org>/infra`** — обычный путь. Задача входит в хаб и ведётся в его общем плане; фазу
+  бота агент выполняет в `../<bot>` **обвязкой этого репо**: `CLAUDE.md`, `/smartdev`, свой план фазы
+  в `.claude/plans/` (`/plan`, `parent: infra:<slug>`), гейт `make check`, финал — `/release`. В хаб возвращаются
+  тег образа и INFRA-HANDOFF-блок.
+- **Прямой заход** (открыт только этот репо) — нормальный режим, обвязка та же. Всё, что требует
+  действия соседей, оформляется блоком `/infra-handoff`: для хаба — env, секреты, webhook,
+  NATS-subject, runtime-deps; для мейнтейнера `pylibinfra` — новая инфра-механика.
+
+## Что берёт
+
+- **Дизайн диалогов — `../strategy`**, слой `docs/projects/<project-slug>/telegram-bot-flow/<surface>/`,
+  только `status: stable`. Читает `/dialog-deep-dive` (транслятор в карту `docs/stack/dialogs.md`),
+  по карте код разворачивает `/scaffold`. Стратегия отсюда не правится: дыры в дизайне закрывает
+  аналитик в `../strategy` его скиллами (`/telegram-bot-flow-deep-dive`). Рантайм-образ от стратегии
+  не зависит. Что именно читается — § Хендофф из стратегии.
+- **Платформа — `pylibinfra[tgbotkit]`**, единственная рантайм-зависимость, пин git-тегом в
+  `[tool.uv.sources]` (`pyproject.toml`). Bootstrap, Dispatcher, RedisStorage, middleware-цепочка,
+  runner (polling/webhook), error-handlers, graceful shutdown, generic-механика
+  i18n/notifications/payments/webapp — в kit'е; шаблон регистрирует бизнес в точки расширения
+  `app.py` (`RouterBundle`/`CommandBundle`/`NotifierBundle`/`ErrorUX`/`LocaleResolver`). Новая
+  инфра-механика — PR в `pylibinfra/tgbotkit`, а не правка шаблона (rule `tgbotkit-boundary`, skill
+  `/infra-handoff`).
+- **Продуктовые бэкенды** (обычно `<org>/backend`): HTTP API через `pkg/http_client`
+  (`HTTPCLIENT_*`) и события NATS через notifications. Stream/subject/durable событий —
+  cross-service контракт; его изменение идёт в INFRA-HANDOFF.
+
+## Что отдаёт
+
+- **Образ в registry.** `make release VERSION=vX.Y.Z` (skill `/release`) пушит один образ
+  `<registry>/<org>/bot:vX.Y.Z`: registry и орга выводятся из `git remote origin` (Gitea
+  `git.stit.tech`), registry переопределяется env `REGISTRY`; имя образа `bot` не зависит от имени
+  репо `<bot>`. После пуша — **STOP**: деплой этот репо не делает.
+- **INFRA-HANDOFF для хаба.** `make release` печатает `BOT_TAG → vX.Y.Z` и накопленные
+  разделы `## Handoff` активных планов. Выкатка — в `<org>/infra`: `make bump SVC=bot TAG=vX.Y.Z`
+  (правит `BOT_TAG` в `.env` на VPS + force-recreate), откат — тот же `bump` на предыдущий тег.
+  Сервис `bot` в стек хаба добавляется там (`/add-service`). `make bump`/`make ship`/`ssh` отсюда не
+  запускаются. Процедура — [release.md](release.md).
 
 ## Хендофф из стратегии (design-time)
 
-Когда у продукта есть стратегия-репо, дизайн диалогов проектируется **там** аналитиком (скиллы
-`telegram-bot-flow-deep-dive`/`-audit`) и читается этим репо read-only, односторонне:
+Дизайн диалогов проектируется в `<org>/strategy` аналитиком (скиллы `telegram-bot-flow-deep-dive`/
+`-audit`) и читается этим репо read-only, односторонне:
 
 | стратегия отдаёт | этот репо читает чем | разворачивает во |
 |---|---|---|
@@ -60,33 +77,3 @@ identity-link).
 
 Маппинг полей артефакта в файлы фичи — [dialog-mapping.md](dialog-mapping.md). Поверхности
 изолированы: бот читает слой одной bot-поверхности (`type: bot` из реестра `surface.md` стратегии).
-
-## Зависимость от pylibinfra: вся инфра там
-
-Директива «framework ≠ продукт»: `tgbotkit` знает про aiogram (transport), но не про конкретные
-диалоги/команды/флоу. Bootstrap бота, Dispatcher, RedisStorage, middleware-цепочка, webhook/polling
-runner, dishka-setup, error-handlers, graceful shutdown, observability апдейтов, generic-механика
-i18n/notifications/payments/webapp — **в kit'е, не в шаблоне**. Шаблон подключает бизнес через точки
-расширения `app.py` (`RouterBundle`/`CommandBundle`/`NotifierBundle`/`ErrorUX`/`LocaleResolver`),
-не трогая инфру.
-
-## INFRA-HANDOFF (новая инфра-механика = PR в pylibinfra)
-
-Если бизнес-задаче нужна **новая инфра-механика** (новый middleware, новый вид рантайма, новая
-generic-обёртка над BgManager, новый error-handler-тип) — это **не правка шаблона, а PR в
-`pylibinfra/tgbotkit`** (rule `tgbotkit-boundary`, skill `infra-handoff`). Шаблон несёт только
-бизнес-логику и регистрацию в точки расширения.
-
-## Self-hosted путь
-
-Эндпоинты (`git.${DOMAIN}` registry, адреса бэкендов/Redis/NATS) на managed-пути указывают на
-хостинг stit (`*.stit.tech`); на self-hosted — на вашу инфру. Всё задаётся через env (registry-host,
-`HTTPCLIENT_*`, `REDIS_URL`, `NATS_URL`) — архитектура кода не меняется, меняется только хост.
-Вендор-лока нет.
-
-## Границы ответственности
-
-Этот репо STOP'ает на image-in-registry. Деплой-команды чужих репо (`make ship`, `ssh`)
-отсюда **не запускаются**. Инфра-поверхность (env/секрет/webhook/cross-service
-NATS-subject/runtime-dep) фиксируется INFRA-HANDOFF-блоком — см. `.claude/rules/infra-impact.md` и
-skill `infra-handoff`. Деплой — [release.md](release.md) → handoff в `<org>/infra`.

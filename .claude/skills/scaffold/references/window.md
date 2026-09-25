@@ -67,7 +67,9 @@ async def on_confirm(
     try:
         await uc.commit(identity)  # мутация
     except errors.ProfileError as exc:
-        await callback.answer(views.error_text(exc), show_alert=True)
+        # .ftl-ключ → текст (bot.shared.i18n.render)
+        fmt = manager.middleware_data.get(I18N_FORMAT_KEY)
+        await callback.answer(render(fmt, views.error_text(exc)), show_alert=True)
         return
     await manager.switch_to(ProfileSG.VIEW)  # успех → назад
 ```
@@ -79,11 +81,11 @@ dialog-level хендлер → `@inject` из `dishka.integrations.aiogram_dial
 ```python
 # dialogs.py (дополнение)
 from aiogram_dialog.widgets.kbd import Button, Row, Back
-from aiogram_dialog.widgets.text import Const
+from pylibinfra.tgbotkit import I18NFormat
 from bot.features.profile import getters, handlers
 
 confirm_window = Window(
-    Const("Сохранить изменения?"),
+    I18NFormat("profile-confirm-save"),  # текст — в locales/<lang>/profile.ftl
     Row(
         Button(I18NFormat("common-confirm"), id="confirm", on_click=handlers.on_confirm),
         Back(I18NFormat("common-back")),
@@ -96,7 +98,7 @@ confirm_window = Window(
 profile_dialog = Dialog(view_window, edit_name_window, confirm_window)
 ```
 
-Привяжи переход из окна, откуда приходят: добавь `SwitchTo(Const("..."), id="to_confirm", state=ProfileSG.CONFIRM)` в кнопки исходного окна. `id` виджета — ASCII, короткий, **уникален в пределах окна** (callback_data строится из него).
+Привяжи переход из окна, откуда приходят: добавь `SwitchTo(I18NFormat("profile-to-confirm"), id="to_confirm", state=ProfileSG.CONFIRM)` в кнопки исходного окна; новые ключи — в `.ftl` всех локалей. `id` виджета — ASCII, короткий, **уникален в пределах окна** (callback_data строится из него).
 
 ## 6. Тесты + верификация
 

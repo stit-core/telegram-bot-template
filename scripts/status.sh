@@ -95,26 +95,9 @@ else
 fi
 echo
 
-# === Plan === (единый roadmap: focus + по секции Active — статус и следующий открытый атом)
+# === Plan === (активные планы .claude/plans/: статус, прогресс, следующий шаг; бэклог)
 echo "== Plan =="
-if [ -f .claude/plans/roadmap.md ]; then
-    foc=$(grep -m1 '^\*\*Current focus:\*\*' .claude/plans/roadmap.md | sed -E 's/\*\*Current focus:\*\*[[:space:]]*//')
-    [ -n "$foc" ] && echo "  focus: $foc"
-    awk '
-      function flush(){ if(slug!="") printf "  %s: %s | next: %s\n", slug, st, (nx==""?"—":nx) }
-      /^## Active/ { inact=1; next }
-      /^## /       { flush(); inact=0; slug=""; next }
-      !inact       { next }
-      /^### /      { flush(); slug=$0; sub(/^### /,"",slug); sub(/ .*/,"",slug); st="?"; nx=""; next }
-      slug=="" { next }
-      /\*\*Статус:\*\*/ { s=$0; sub(/.*\*\*Статус:\*\*[[:space:]]*/,"",s); sub(/[[:space:]].*$/,"",s); st=s }
-      /^- \[ \] \*\*A[0-9]/ && nx=="" { n=$0; sub(/^- \[ \] \*\*/,"",n); sub(/:.*/,"",n); nx=n }
-      END { flush() }
-    ' .claude/plans/roadmap.md
-    grep -q '^### ' .claude/plans/roadmap.md || echo "  (no active plans)"
-else
-    echo "  (no roadmap)"
-fi
+bash scripts/validate-plan.sh --summary
 echo
 
 # === Recent commits ===

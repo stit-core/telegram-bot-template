@@ -16,22 +16,25 @@ paths:
 
 - Один `Dialog` ⇄ одна `StatesGroup`; `Dialog` **является** `Router` → отдаётся в `RouterBundle`
   через `__init__.py` (не регистрируется руками — это делает kit).
-- `state=` каждого `Window` — из `bot.platform.dialogs.states` (НЕ объявлять `State()` по месту).
+- `state=` каждого `Window` — из `bot.platform.dialogs.states`, а не `State()` по месту: единый
+  каталог разрывает циклы импорта между диалогами (rule `state-lifecycle`).
 - Корневой/«домашний» диалог — `launch_mode=LaunchMode.ROOT` (стек не растёт от повторного входа).
-  ROOT в проекте один (сейчас — `start`).
+  ROOT в проекте один (в шаблоне — `start`).
 - Переход в другую фичу — по её `State` из `states` (`Start(...)`/`SwitchTo(...)`), **не** импортом
   модуля другой фичи. Общие кнопки — фабрики из `platform/dialogs/common.py` (`open_dialog`/
   `back_to_menu`), не разделяемые синглтоны.
 - `id` виджета: ASCII, короткий, **уникален в пределах окна** (callback_data строится из него;
   коллизия → клики уходят не туда). Кнопка — своя на окно (фабрика), не один инстанс на два окна.
-- Статические подписи — `I18NFormat("<key>")` (перевод по ключу, префикс = фича); динамика —
-  `Format("{key}")` с данными из getter. Все `{...}` в `Format` обязаны иметь значение в getter.
+- Статические подписи — `I18NFormat("<key>")` (перевод по ключу, префикс = фича); текст со
+  статикой и данными — тоже `I18NFormat`: значения getter'а приходят в `.ftl` Fluent-аргументами
+  `{ $key }` (как `booking-confirm`). `Format("{key}")` — для данных без переводимого текста. Все
+  `{...}` в `Format` обязаны иметь значение в getter.
 
 ## getter — только данные
 
 - `getter(**kwargs)` async, дёргает **usecase** (не порт/pkg-клиент/httpx) и **не импортит
-  `policy`** (контракт import-linter). `**kwargs` ОБЯЗАТЕЛЕН — getter
-  зовут со всем `middleware_data`; не перечисляй reserved-ключи руками.
+  `policy`** (контракт import-linter). `**kwargs` обязателен: getter зовут со всем
+  `middleware_data`; reserved-ключи руками не перечисляй.
 - DI — `@inject` из **`dishka.integrations.aiogram_dialog`** (getter не event-handler диспетчера),
   зависимости через `FromDishka[...]`. Возврат — `dict` со **всеми** ключами, что читает `Format`
   (дефолты для каждого: пустая строка/`—`, иначе `KeyError` уронит рендер).
@@ -54,7 +57,7 @@ paths:
 - Dispatcher-level хендлеры (команды, `pre_checkout`, `successful_payment`) — `@inject` из
   **`dishka.integrations.aiogram`**; отдаются в `CommandBundle` через `CommandSpec`, не в `Dialog`.
 - `DialogManager` в dispatcher-level хендлере приходит из `middleware_data` — это **обычный
-  kwarg**, НЕ `FromDishka[DialogManager]`.
+  kwarg**, а не `FromDishka[DialogManager]`.
 - `/start` (и любой ре-вход в корень) — `mode=StartMode.RESET_STACK`: иначе стек копится до лимита
   100 → `DialogStackOverflow`.
 - Ошибку usecase превращаем в `.ftl`-ключ (`views.error_text`), рендерим

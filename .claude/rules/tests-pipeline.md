@@ -13,15 +13,15 @@ paths:
 
 ## Пирамида и раскладка
 
-- `tests/unit/` (`@pytest.mark`? нет — маркер `unit`): чистое — `policy`/`views`/валидаторы.
+- `tests/unit/` (маркер `unit`): чистое — `policy`/`views`/валидаторы, usecase на фейке порта.
 - `tests/flows/` (маркер **`dialog`**): сценарии диалогов через `BotClient` +
   `MockMessageManager` + `JsonMemoryStorage` (`pylibinfra.testkit.bottest`), без реального
   Telegram. Сборка контейнера/dp — `tests/_fakes/harness.py` (`make_container`/`build_dp`).
 - `tests/pkg/` (маркер **`pkg`**): pkg-клиенты (`ProfileAPI`/`BookingAPI`/`PaymentsAPI`) через
   `respx` (мок httpx на транспорт-границе) + негативный канон таксономии/ретраев/гейта мутаций —
   `test_error_taxonomy.py` (единственное место, где проверяется retry/breaker-поведение).
-- маркер `integration` (Docker, testcontainers redis/nats) и `e2e` — **вне** `make check`,
-  гоняет CI (`make test-integration`).
+- маркер `integration` (Docker, testcontainers redis/nats) — **вне** `make check`, гоняется
+  отдельно `make test-integration`; маркер `e2e` зарегистрирован, тестов под ним нет.
 
 ## Мокаем границу бэкенда, не транспорт
 

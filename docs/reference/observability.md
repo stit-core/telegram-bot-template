@@ -1,10 +1,8 @@
 # Observability
 
 Наблюдаемость бота — **структурные JSON-логи в stdout** через `pylibinfra.logkit` плюс health-пробы
-`/health` и `/ready` на порту `httpkit`. Метрики и спаны киты эмитят через глобальные
-OTel-провайдеры, но шаблон их не экспортирует (кит `telemetry` не подключён — сигналы no-op).
-Kit пишет технические логи апдейтов автоматически — шаблон добавляет бизнес-логи. Логи собирает
-рантайм контейнера (`docker/compose logs`).
+`/health` и `/ready` на порту `httpkit`. Kit пишет технические логи апдейтов автоматически — шаблон
+добавляет бизнес-логи. Логи собирает рантайм контейнера (`docker/compose logs`).
 
 ## Логи (logkit)
 
@@ -44,19 +42,17 @@ liveness; `/ready` гоняет пробы из `ExtensionProvider.probes` па�
 Инфра проверяет `make ps` → `healthy`. Деградация Redis видна и в логах кита
 (`tgbotkit: dedup unavailable, update passed through` — fail-open по апдейтам).
 
-## Метрики и спаны (не экспортируются)
+## Метрики и спаны
 
-Киты инструментированы OTel: `tg_updates_total`, `tg_update_duration_seconds`,
-`tg_update_panics_total`, `tg_payments_total`, `http_client_*`, `cache_*`, `nats_*`,
-`log_messages_total`; спан `tg.update` на апдейт (в webhook — child server-спана httpkit). Без
-`MeterProvider`/`TracerProvider` они no-op. Включение экспорта — `telemetry.TelemetryProvider()`
-после `LogkitProvider()` в `build_container` + `telemetry.start(container)` в `app.run`; это
-изменение инфра-поверхности (`OTEL_*` env, коллектор) → skill `infra-handoff`.
+Киты инструментированы OTel (`tg_updates_total`, `tg_update_duration_seconds`, `http_client_*`,
+спан `tg.update` на апдейт и т.п.), но кит `telemetry` в шаблоне не подключён: без
+`MeterProvider`/`TracerProvider` эти сигналы no-op и никуда не уходят. Наблюдаемость бота — логи и
+health выше.
 
-## Чтение
+## Чтение прод-логов
 
-Логи — в stdout, собираются рантаймом контейнера. Чтение/агрегация прод-логов (`make logs` и куда
-они складываются) — забота деплой-репо `<org>/infra`, не этого репо.
+Прод-стек живёт в хабе `<org>/infra`, этот репо к нему не ходит. Логи задеплоенного бота читаются
+там: `make logs SVC=bot` (`docker compose logs --tail=100`; с workstation — через ssh на VPS).
 
 ## Локально (e2e)
 

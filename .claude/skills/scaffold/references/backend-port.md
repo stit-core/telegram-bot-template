@@ -178,7 +178,7 @@ class _Gateway:
     async def get_balance(self, user_id: str) -> Balance:
         if self._error is not None:
             raise self._error
-        return Balance(amount=5)
+        return Balance(amount=5, currency="XTR")
 
 
 async def test_balance_maps_unavailable() -> None:

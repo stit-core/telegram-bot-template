@@ -48,11 +48,11 @@ else
     warn "git hooks: не установлены — make setup"
 fi
 
-# 4. Структура плана — единый roadmap.md.
+# 4. Формат планов .claude/plans/.
 if bash scripts/validate-plan.sh >/dev/null 2>&1; then
-    ok "roadmap: структура плана валидна"
+    ok "планы: формат валиден"
 else
-    warn "roadmap: validate-plan.sh красный — make plan-check покажет детали"
+    warn "планы: validate-plan.sh красный — make plan-check покажет детали"
 fi
 
 # 5. Draft stack-доки — напоминание, не блокер (gate de-template — stable).

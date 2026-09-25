@@ -64,12 +64,12 @@ def cleanup_job(uc: CleanupUsecase) -> Job:
 
 ## 4. Если джоба шлёт в Telegram — фоновая доставка
 
-Фоновая отправка идёт **не через апдейт**, а через `BgManager`/`Delivery` (как notifications). Грабли request_id/пустой стек/throttle закрыты в `Delivery` (kit); **локаль фон не резолвит сам** — бери её через `LocalePrefStore.get(user_id)` и рендери ключ через `Delivery.localize(locale, key, args)`. Не дёргай `bot.send_message` напрямую из джобы без обёртки — потеряешь корреляцию и наткнёшься на throttle. Переиспользуй паттерн `features/notifications/deliver.py`, резолвя `chat_id` по `platform/links.py` (`chat_link_key`); если рассылка может повториться после рестарта — дедуп через `DeliveryDedup` (резерв с токеном → отправка → `commit`).
+Фоновая отправка идёт **не через апдейт**, а через `Delivery` — обёртку kit'а над `BgManager` (как notifications). Грабли request_id/пустой стек/throttle закрыты в `Delivery` (kit); **локаль фон не резолвит сам** — бери её через `LocalePrefStore.get(user_id)` и рендери ключ через `Delivery.localize(locale, key, args)`. Не дёргай `bot.send_message` напрямую из джобы без обёртки — потеряешь корреляцию и наткнёшься на throttle. Переиспользуй паттерн `features/notifications/deliver.py`, резолвя `chat_id` по `platform/links.py` (`chat_link_key`); если рассылка может повториться после рестарта — дедуп через `DeliveryDedup` (резерв с токеном → отправка → `commit`).
 
 ## 5. Регистрация
 
 - экспортируй `cleanup_job` из фасада фичи; провайдер фичи (`CleanupProvider`, APP-scope зависимости) — в `build_container()` (`app.py`);
-- `TimerkitProvider()` — в `build_container()` **до** `ExtensionProvider()`: его пустой дефолт `Jobs` перекрывает провайдер, зарегистрированный позже; `Clock` и `Logger` у него уже есть (`ClockProvider`/`LogkitProvider` в контейнере);
+- `TimerkitProvider()` — в `build_container()` **до** `ExtensionProvider()`: его пустой дефолт `Jobs` перекрывается провайдером, зарегистрированным позже (в dishka побеждает последний); `Clock` и `Logger` у него уже есть (`ClockProvider`/`LogkitProvider` в контейнере);
 - собери `timerkit.Jobs` в `ExtensionProvider` (`app.py`) по образцу `notifiers`:
   `@provide def jobs(self, uc: CleanupUsecase) -> timerkit.Jobs: return (cleanup_job(uc),)`;
 - **резолви `Runner` явно** в `app.run()` перед `runner.run()`: `await container.get(timerkit.Runner)` — dishka ленив, без запроса расписание не поднимется. Остановка (`Runner.stop`: ожидание идущих запусков в дедлайн) — на `container.close()`, который делает `BotRunner` на shutdown.
@@ -78,7 +78,7 @@ def cleanup_job(uc: CleanupUsecase) -> Job:
 
 - usecase-тест: `purge_expired()` на фейк-store удаляет просроченное, логирует count (без таймера).
 - идемпотентность: повторный вызов на пустом наборе — no-op, не падает.
-- расписание — только если джоба нетривиальна: `Runner((cleanup_job(uc),), nop(), clock=Tickable(...))` → `start()` → `await clock.wait_sleepers(1)` → `clock.advance(300)` → запуск прошёл (README timerkit § Тестирование); сама обёртка `Job` теста не требует.
+- расписание — только если джоба нетривиальна: `Runner((cleanup_job(uc),), nop(), clock=Tickable(...))` → `start()` → `await clock.wait_sleepers(1)` → `clock.advance(300)` → запуск прошёл (`pylibinfra`: `src/pylibinfra/timerkit/README.md` § Тестирование); сама обёртка `Job` теста не требует.
 - `make check`.
 
 `feat(cleanup): add periodic draft purge job`
@@ -89,7 +89,7 @@ def cleanup_job(uc: CleanupUsecase) -> Job:
 - ❌ `bot.send_message` напрямую из джобы — фон вне middleware; шли через `Delivery` (как notifications).
 - ❌ Неидемпотентная джоба, которая дублирует эффект при рестарте.
 - ❌ REQUEST-scope зависимость (`BotIdentity`, per-update usecase) в джобе — у периодики нет апдейта.
-- ❌ Подключить `timerkit`, не отразив новую runtime-зависимость в `**Infra impact.**` (`infra-handoff`).
+- ❌ Подключить `timerkit`, не отразив новую runtime-зависимость в `## Handoff` плана (`infra-handoff`).
 - ❌ `TimerkitProvider()` после `ExtensionProvider()` — пустой дефолт `Jobs` победит, джобы молча не запустятся.
 - ❌ Не резолвить `timerkit.Runner` в `app.run()` — расписание не поднимется.
 - ❌ Тяжёлая блокирующая работа в джобе, конкурирующая с обработкой апдейтов (один процесс).

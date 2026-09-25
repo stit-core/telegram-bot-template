@@ -17,7 +17,7 @@
 
 ### 3. backends → `docs/stack/backends.md`
 - Клиенты областей API — `pkg/http_client/` (`internal/` свои, `external/` сторонние), по классу на область (`ProfileAPI`-стиль) поверх `pylibinfra.httpclient.ApiClient`; провайды — `pkg/http_client/provider.py` поверх реестра `ApiClients.get(<имя>)`.
-- Имена и base_url бэкендов — `BackendsConfig.backends: dict[имя, Config]` в `config.py` (`AppConfigProvider.backends`): один бэкенд — `{CORE_BACKEND: HttpConfig()}` (env `HTTPCLIENT_BASE_URL`/`HTTPCLIENT_TIMEOUT`/…); несколько — запись на каждого со своим `base_url` (свой `*_BASE_URL` env) либо env-JSON `HTTPCLIENT_BACKENDS`. Дефолтное имя breaker'а = имя бэкенда (per-API метрики) — kit ставит сам.
+- Имена и base_url бэкендов — `BackendsConfig.backends: dict[имя, BackendConfig]` в `config.py` (`AppConfigProvider.backends`): «core» собирает `_core_backend()` из глобальных `HTTPCLIENT_*` (`HTTPCLIENT_BASE_URL` обязателен, `HTTPCLIENT_TIMEOUT`/…); дополнительные — env-JSON `HTTPCLIENT_BACKENDS` или программная запись со своим `base_url` (свой `*_BASE_URL` env), процедура — `scaffold` backend-port §C. Имя breaker'а = имя бэкенда — kit ставит сам.
 - Маппинг typed-ошибок (`NotFoundError`/`ConflictError`/`UnavailableError`) в sentinel'ы фичи — в `usecase.py` каждой фичи (единственная точка anti-corruption), не в общем слое.
 - Идемпотентность мутаций — `idempotency_key=` в методах pkg-клиента (ASCII-safe).
 
@@ -35,7 +35,7 @@
 
 ### 6. auth → `docs/stack/auth.md`
 - identity-link tg↔backend — в `platform/identity/` (`IdentityProvider`, REQUEST-scope).
-- admin-allowlist — `APP_ADMIN_IDS` в `config.py` (`AppConfig.admin_id_set()`).
+- admin-allowlist — `APP_ADMIN_IDS` в `config.py` (`AppConfig.admin_ids: frozenset[int]`, csv парсится на валидации — мусор валит старт).
 - WebApp initData — `platform/webapp/init_data.py` (`validate_init_data`); убери, если без Mini App.
 
 ### 7. observability → `docs/stack/observability.md`

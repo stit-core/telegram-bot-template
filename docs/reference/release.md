@@ -1,6 +1,7 @@
 # Release
 
-Зона репо: **код → image в registry, STOP.** Деплой — другие репо. Полный флоу — skill `/release`.
+Зона репо: **код → image в registry, STOP.** Выкатка тега — в хабе `<org>/infra` (`make bump`).
+Полный флоу — skill `/release`.
 
 ## Один образ
 
@@ -16,13 +17,15 @@ make release VERSION=vX.Y.Z
 ```
 
 `scripts/release.sh`: валидирует semver (`:latest`/lightweight отвергаются) → confirm-промпт →
-annotated tag на HEAD → preflight (main / clean / docker-auth) → `docker buildx --platform
-linux/amd64 --push` **одного** образа `<host>/<org>/bot:<v>` (multi-stage uv, приватный
-`pylibinfra[tgbotkit]` через build-secret `git_token`; `SERVICE_VERSION`/`GIT_COMMIT` зашиты в образ) → печатает
-агрегированный **INFRA-HANDOFF** и STOP.
+annotated tag на HEAD → preflight (main / clean / annotated-тег / buildx / docker-auth) →
+`docker buildx --platform linux/amd64 --push` **одного** образа `<registry>/<org>/bot:<v>`
+(registry и орга — из `git remote origin`, registry переопределяется env `REGISTRY`; multi-stage uv,
+приватный `pylibinfra[tgbotkit]` через build-secret `git_token`; `SERVICE_VERSION`/`GIT_COMMIT`
+зашиты в образ) → печатает агрегированный **INFRA-HANDOFF** и STOP.
 
 Pre-flight (до команды): зелёный `make check` + startup-smoke (`pytest -k collision`: `setup_dialogs`
-без коллизий `StatesGroup` — кривой State-граф не падает на CI юнитов, но уронит бот на старте).
+без коллизий `StatesGroup` — кривой State-граф не виден юнит-тестам, но уронит бот на старте).
+Скрипт ставит тег до своего preflight, поэтому ветку `main` и чистое дерево проверь заранее.
 
 ## Версионирование (semver)
 
@@ -32,15 +35,16 @@ Pre-flight (до команды): зелёный `make check` + startup-smoke (`
   notification-subject / контракт бэкенда.
 
 Удаление State релизится только как major и только через `state-migration` (deprecation) —
-[architecture.md](architecture.md § Non-goals), rule `state-lifecycle`.
+[architecture.md](architecture.md) § Non-goals, rule `state-lifecycle`.
 
-## Handoff (НЕ в этом репо)
+## Handoff (выполняется в хабе, не здесь)
 
-`make release` печатает `=== INFRA HANDOFF ===`: `BOT_TAG → <v>`; накопленные `**Infra impact.**` из
-активных секций `.claude/plans/roadmap.md` (rule `infra-impact`); действие инфра-стороны: rollout —
+`make release` печатает `=== INFRA HANDOFF ===`: `BOT_TAG → <v>`; накопленные разделы `## Handoff`
+активных планов `.claude/plans/` (rule `infra-impact`); действие инфра-стороны: rollout —
 `make bump SVC=bot TAG=<v>` в `<org>/infra` (правит `BOT_TAG` в `.env` на VPS + force-recreate;
-`make ship` там — про доставку самого infra-репо). `make ship`/`make bump`/`ssh` отсюда
-**не выполняются** — оператор передаёт блок out-of-band.
+`make ship` там — про доставку самого infra-репо). Строки INFRA-HANDOFF из `.claude/plans/backlog.md`
+скрипт не агрегирует — их передают вместе с блоком. `make ship`/`make bump`/`ssh` отсюда
+**не выполняются** — блок уходит в хаб (агенту хаба или инфра-админу).
 
 ## Verify (в infra-репо)
 
