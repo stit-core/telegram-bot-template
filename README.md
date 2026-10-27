@@ -114,7 +114,7 @@ make release VERSION=vX.Y.Z   # образ в registry (skill /release)
 
 Это один из открытых шаблонов stit (Apache-2.0) — фундамент «-1 уровня», берите бесплатно и
 владейте. Карта всех шаблонов и точка входа — **[витрина stit](https://github.com/stit-core)**.
-Нужна команда, стандарт или поддержка — **[наш подход и контакты (vision)](https://git.stit.tech/stit/vision)**.
+Нужна команда, стандарт или поддержка — **[пишите в Telegram @gommgo](https://t.me/gommgo)**.
 
 ## Лицензия
 
