@@ -5,18 +5,20 @@
 ### Тонкий шаблон Telegram-бота: чистая бизнес-логика на aiogram_dialog
 
 Шаблон Telegram-бота экосистемы stit: aiogram 3.31 + aiogram-dialog 2.6 + dishka, поверх
-[`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra) (Bot/Dispatcher,
+[`pylibinfra[tgbotkit]`](https://github.com/stit-core/pylibinfra) (Bot/Dispatcher,
 RedisStorage, middleware, webhook/polling runner, error-UX, структурные логи, i18n/notifications/
 payments/webapp). Observability, тесты и релиз — встроены; вы пишете фичи (диалоги), не обвязку.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-2563eb)](LICENSE)
-[![Часть stit](https://img.shields.io/badge/stit-открытые_шаблоны-6366f1)](https://git.stit.tech/stit-core/stit-public)
+[![Часть stit](https://img.shields.io/badge/stit-открытые_шаблоны-6366f1)](https://github.com/stit-core)
 [![Python](https://img.shields.io/badge/Python-≥3.12-3776AB)](#что-внутри)
 [![aiogram](https://img.shields.io/badge/aiogram-3.31_+_aiogram__dialog_2.6-0088cc)](#что-внутри)
 [![DI](https://img.shields.io/badge/DI-dishka-8b5cf6)](#что-внутри)
 [![Observability](https://img.shields.io/badge/observability-structured_logs-22c55e)](#что-внутри)
 
 </div>
+
+> Разработка идёт в приватном Gitea (`git.stit.tech/stit-core/telegram-bot-template`), публичное зеркало — [github.com/stit-core/telegram-bot-template](https://github.com/stit-core/telegram-bot-template). Как с ним работать вне инфраструктуры stit — в [профиле stit-core](https://github.com/stit-core).
 
 ---
 
@@ -68,7 +70,7 @@ claude                 # → /init-service
 - **HTTP к бэкендам** — `pkg/http_client/` (API-классы поверх `pylibinfra.httpclient`, typed-ошибки).
 - **DI** — `dishka`. Один runtime-процесс: диалоги + notifications-подписчики + jobs в одном боте
   (отдельного worker-образа нет, бот stateless — state в Redis).
-- **Платформа** — [`pylibinfra[tgbotkit]`](https://git.stit.tech/stit-core/pylibinfra):
+- **Платформа** — [`pylibinfra[tgbotkit]`](https://github.com/stit-core/pylibinfra):
   Bot/Dispatcher/RedisStorage, middleware, webhook/polling runner, error-handlers, структурные логи,
   health-пробы `/ready`, generic-механика i18n/notifications/payments/webapp.
 - **Дизайн флоу** — артефакты в соседнем стратегии-репо; маппинг в код —
@@ -111,7 +113,7 @@ make release VERSION=vX.Y.Z   # образ в registry (skill /release)
 ## Часть экосистемы stit
 
 Это один из открытых шаблонов stit (Apache-2.0) — фундамент «-1 уровня», берите бесплатно и
-владейте. Карта всех шаблонов и точка входа — **[витрина stit](https://git.stit.tech/stit-core/stit-public)**.
+владейте. Карта всех шаблонов и точка входа — **[витрина stit](https://github.com/stit-core)**.
 Нужна команда, стандарт или поддержка — **[наш подход и контакты (vision)](https://git.stit.tech/stit/vision)**.
 
 ## Лицензия
