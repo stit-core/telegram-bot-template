@@ -17,7 +17,7 @@ Telegram-бот на `aiogram` + `aiogram_dialog` поверх `pylibinfra[tgbot
 | `project-infra-template-compose` → `<org>/infra` | runtime проекта (docker-compose на VPS) и операционный хаб: общий план, рассылка агентов по сиблингам, выкатка тегов (`make bump`) |
 | `go-backend-template` → `<org>/backend` | Go-сервис — обычно продуктовый бэкенд бота |
 | `spa-frontend-template` → `<org>/frontend` | React SPA (кабинет, всё за логином) |
-| `ssr-frontend-template` → `<org>/site` | Astro SSR-сайт (индексируемый контент) |
+| `seo-frontend-template` → `<org>/site` | Astro SEO-сайт (индексируемый контент) |
 | `telegram-bot-template` → `<org>/<bot>` | **этот репо** — Telegram-бот (Python, aiogram) |
 | `mobile-template` → `<org>/mobile` | KMP-приложение Android + iOS; релиз — в магазины |
 
