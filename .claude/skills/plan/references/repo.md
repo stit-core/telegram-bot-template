@@ -1,8 +1,8 @@
 # Профиль репо для /plan — telegram-bot-template
 
-- **Роль:** сервис — Telegram-бот (`<org>/<bot>`, образ `<org>/bot`). Работа приходит фазой программы
-  из хаба `<org>/infra` (`parent: infra:<slug>`) или прямым заходом. Итог — образ в registry
-  (`/release`); выкатка тега — только из хаба (`make bump SVC=bot`).
+- **Роль:** сервис — Telegram-бот (`<org>/<bot>`, образ `<org>/bot`). Работа приходит из корня
+  проекта — задачей или фазой программы хаба `<org>/infra` (`parent: infra:<slug>`) — или прямым
+  заходом. Итог — образ в registry (`/release`); выкатка тега — только из хаба (`make bump SVC=bot`).
 - **Гейт перед «готово»:** `make check`.
 - **Проверка планов:** `make plan-check` (её же вызывает `make doctor`).
 - **Сводка планов:** `make status` → `== Plan ==`.
