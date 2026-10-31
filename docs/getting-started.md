@@ -9,7 +9,9 @@
 ## 0. Форк
 
 1. Gitea → `telegram-bot-template` → **Use this template** → `<org>/<bot>`.
-2. `git clone git@git.stit.tech:<org>/<bot>.git && cd <bot>`.
+2. Клон — в корень проекта `~/git/<org>/`
+   ([`project-root.md`](https://github.com/stit-core/project-infra-template-compose/blob/main/docs/reference/project-root.md)):
+   `git clone git@git.stit.tech:<org>/<bot>.git ~/git/<org>/<bot> && cd ~/git/<org>/<bot>`.
 3. Один раз на машину — доступ к приватным модулям той же Gitea:
    `git config --global url.git@git.stit.tech:.insteadOf https://git.stit.tech/`.
 4. `make setup` — зависимости (`uv sync`) + git-хуки.
@@ -72,6 +74,6 @@ scaffold фич → прун reference. Дальше шаги 2–6 — под �
 
 `make check` зелёный + startup-smoke (`pytest -k collision`) чистый → бот больше ничего не помнит про
 шаблон: своё имя, свои фичи, стек, deps. Дальше — обычный дневной флоу через `/smartdev`: задачи
-обычно приходят агентом из хаба `<org>/infra`, прямой заход тоже нормален
+обычно приходят из корня проекта — сессией корня или её фоновым агентом, прямой заход тоже нормален
 ([reference/ecosystem.md](reference/ecosystem.md)); устройство `.claude`-системы —
 `docs/contributing.md`. Релиз образа — `docs/reference/release.md`.

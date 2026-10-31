@@ -31,12 +31,15 @@ business-strategy-template (<org>/strategy)   ← дизайн диалогов 
 telegram-bot-template (<org>/<bot>)  ← вы здесь   ──► stit-core/pylibinfra[tgbotkit]
         │  /release: образ <registry>/<org>/bot:vX.Y.Z + INFRA-HANDOFF
         ▼
-project-infra-template-compose (<org>/infra)   ← операционный хаб: make bump SVC=bot TAG=<v>
+project-infra-template-compose (<org>/infra)   ← хаб: программы сквозных задач,
+                                                 выкатка (make bump SVC=bot TAG=<v>)
 ```
 
-Задачи обычно приходят из хаба `<org>/infra` — агент работает здесь обвязкой этого репо; прямой
-заход в репо — тоже нормальный режим. Роль, соседи и стыки —
-[`docs/reference/ecosystem.md`](docs/reference/ecosystem.md).
+Работа сюда обычно приходит из корня проекта `~/git/<org>/`, где этот репо — папка `<bot>/`:
+задачу или фазу программы хаба ведёт сессия корня или её фоновый агент — обвязкой этого репо;
+прямой заход в репо — тоже нормальный режим. Устройство корня —
+[`project-root.md`](https://github.com/stit-core/project-infra-template-compose/blob/main/docs/reference/project-root.md),
+роль, соседи и стыки — [`docs/reference/ecosystem.md`](docs/reference/ecosystem.md).
 
 ## Использовать как шаблон
 
@@ -48,7 +51,7 @@ project-infra-template-compose (<org>/infra)   ← операционный ха
 Быстрый старт (чтобы собралось):
 
 ```bash
-# 1. Use this template → <org>/<bot>, склонировать
+# 1. Use this template → <org>/<bot>, склонировать в корень проекта: ~/git/<org>/<bot>
 # 2. (один раз на машину) доступ к приватным модулям той же Gitea:
 git config --global url.git@git.stit.tech:.insteadOf https://git.stit.tech/
 # 3. зелёный gate:

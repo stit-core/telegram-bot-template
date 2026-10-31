@@ -44,7 +44,7 @@ Pre-flight (до команды): зелёный `make check` + startup-smoke (`
 `make bump SVC=bot TAG=<v>` в `<org>/infra` (правит `BOT_TAG` в `.env` на VPS + force-recreate;
 `make ship` там — про доставку самого infra-репо). Строки INFRA-HANDOFF из `.claude/plans/backlog.md`
 скрипт не агрегирует — их передают вместе с блоком. `make ship`/`make bump`/`ssh` отсюда
-**не выполняются** — блок уходит в хаб (агенту хаба или инфра-админу).
+**не выполняются** — блок уходит в хаб (сессии корня в папке `infra/` или инфра-админу).
 
 ## Verify (в infra-репо)
 

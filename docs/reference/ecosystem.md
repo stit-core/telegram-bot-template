@@ -1,20 +1,22 @@
 # Ecosystem
 
-Шаблоны `stit-core/*` форкаются в репо клиентской орги `<org>/*`; форки одной орги лежат рядом
-sibling-checkout'ами (`../<name>`). Этот шаблон — `telegram-bot-template` → форк `<org>/<bot>`:
-Telegram-бот на `aiogram` + `aiogram_dialog` поверх `pylibinfra[tgbotkit]`. Бот — тонкий клиент
-продуктовых бэкендов: бизнес-данные и логика живут там (HTTP API + события NATS), сам бот владеет
-только своим state в Redis (FSM/диалоги/dedup/identity-link).
+Шаблоны `stit-core/*` форкаются в репо клиентской орги `<org>/*`; форки одной орги лежат в корне
+проекта `~/git/<org>/` sibling-checkout'ами (`../<name>`). Этот шаблон — `telegram-bot-template` →
+форк `<org>/<bot>`, папка `<bot>/` корня: Telegram-бот на `aiogram` + `aiogram_dialog` поверх
+`pylibinfra[tgbotkit]`. Бот — тонкий клиент продуктовых бэкендов: бизнес-данные и логика живут там
+(HTTP API + события NATS), сам бот владеет только своим state в Redis (FSM/диалоги/dedup/identity-link).
 
 Канон карты и операционного флоу — `docs/reference/ecosystem.md` инфра-репо (`<org>/infra`, форк
-`project-infra-template-compose`). Здесь — роль этого репо и его стыки с соседями.
+`project-infra-template-compose`), корня проекта — там же
+[`project-root.md`](https://github.com/stit-core/project-infra-template-compose/blob/main/docs/reference/project-root.md).
+Здесь — роль этого репо и его стыки с соседями.
 
 ## Соседи
 
 | Шаблон → форк | Роль |
 |---|---|
 | `business-strategy-template` → `<org>/strategy` | design-time source of truth: бизнес, AJTBD, SWOT, карта гипотез, продукты (в т.ч. слой `telegram-bot-flow` — дизайн диалогов бота), ИТ-периметр |
-| `project-infra-template-compose` → `<org>/infra` | runtime проекта (docker-compose на VPS) и операционный хаб: общий план, рассылка агентов по сиблингам, выкатка тегов (`make bump`) |
+| `project-infra-template-compose` → `<org>/infra` | runtime проекта (docker-compose на VPS) и хаб: программы сквозных задач, выкатка тегов (`make bump`) |
 | `go-backend-template` → `<org>/backend` | Go-сервис — обычно продуктовый бэкенд бота |
 | `spa-frontend-template` → `<org>/frontend` | React SPA (кабинет, всё за логином) |
 | `seo-frontend-template` → `<org>/site` | Astro SEO-сайт (индексируемый контент) |
@@ -26,11 +28,13 @@ Telegram-бот на `aiogram` + `aiogram_dialog` поверх `pylibinfra[tgbot
 
 ## Как сюда приходят агенты
 
-- **Из хаба `<org>/infra`** — обычный путь. Задача входит в хаб и ведётся в его общем плане; фазу
-  бота агент выполняет в `../<bot>` **обвязкой этого репо**: `CLAUDE.md`, `/smartdev`, свой план фазы
-  в `.claude/plans/` (`/plan`, `parent: infra:<slug>`), гейт `make check`, финал — `/release`. В хаб возвращаются
-  тег образа и INFRA-HANDOFF-блок.
-- **Прямой заход** (открыт только этот репо) — нормальный режим, обвязка та же. Всё, что требует
+- **Из корня проекта `~/git/<org>/`** — обычный путь. Задачу или фазу программы хаба ведёт сессия
+  корня — сама или фоновым агентом — в папке `<bot>/` **обвязкой этого репо**: сначала `CLAUDE.md`
+  через Read (с ним подхватываются правила и скиллы репо), дальше `/smartdev`, план в
+  `.claude/plans/` (`/plan`), гейт `make check`, финал — `/release`. Сквозная задача — программа в
+  хабе `<org>/infra`, её фаза бота планируется здесь `/plan` с `parent: infra:<slug>`. В хаб
+  возвращаются тег образа и INFRA-HANDOFF-блок.
+- **Прямой заход** (сессия в папке репо) — нормальный режим, обвязка та же. Всё, что требует
   действия соседей, оформляется блоком `/infra-handoff`: для хаба — env, секреты, webhook,
   NATS-subject, runtime-deps; для мейнтейнера `pylibinfra` — новая инфра-механика.
 
